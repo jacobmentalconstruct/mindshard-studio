@@ -1,0 +1,19 @@
+name: mindshard-dev
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  # --- Base Environment ---
+  - python=3.10
+  - pip
+
+  # --- Core ML Stack (Managed by Conda for stability) ---
+  - pytorch-cuda=12.1
+  - pytorch=2.3.1
+  - torchvision=0.18.1  # Add torchvision explicitly to resolve conflicts
+  - torchaudio=2.3.1
+  
+  # --- All other dependencies will be installed via pip from pyproject.toml ---
+  - pip:
+    - -e .[dev]

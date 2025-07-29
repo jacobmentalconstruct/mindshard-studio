@@ -1,0 +1,89 @@
+# File: pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mindshard-api"
+version = "0.1.0"
+authors = [
+  { name="Your Name", email="you@example.com" },
+]
+description = "The core backend for the MindshardAI application, providing services for memory, RAG, and intelligent workflows."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    # --- Core FastAPI & Server ---
+    "fastapi",
+    "uvicorn[standard]", # Includes uvloop and other performance extras
+    "pydantic",
+    "pydantic-settings",
+    "structlog",
+    "python-dotenv",
+    "python-multipart==0.0.20", # For file uploads
+    "websockets==15.0.1",      # For WebSocket support
+
+    # --- AI/ML & Torch Ecosystem ---
+    "llama-cpp-python==0.2.79",          # Keep pinned, it's sensitive
+    "sentence-transformers==3.0.1",      # Pin to the LATEST STABLE version
+    "transformers==4.42.3",              # Pin to a recent, compatible stable version
+    "torchaudio==2.3.1",                 # Audio processing for torch
+    "torchvision==0.17.2",               # Image processing for torch
+    # "torch" is removed because Conda is managing it.
+
+    # --- Vector Stores & RAG ---
+    "chromadb",
+    "faiss-cpu", # or "faiss-gpu" if you have a CUDA-enabled GPU
+    "readability-lxml", # For the URL ingestion in knowledge_api
+    "lxml[html_clean]", # Explicitly add the required lxml component
+
+    # --- Summarization & NLP ---
+    "sumy",
+    "numpy<2.0",
+    "pytesseract==0.3.13", # Added for OCR capabilities
+
+    # --- Observability & Monitoring ---
+    "prometheus-client",
+    "pynvml==12.0.0",        # For NVIDIA GPU monitoring
+
+    # --- Utilities ---
+    "httpx",         # For async HTTP requests in knowledge_api
+    "psutil",        # For system metrics in system_api
+
+    # --- Optional: Uncomment if you use these features ---
+    "sentry-sdk[fastapi]",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov==6.2.1",
+    "ruff==0.12.5",
+    "black==25.1.0",
+    "pip-tools==7.4.1",
+    "pipdeptree==2.28.0",
+]
+
+[project.scripts]
+# This creates a command-line script to run the server
+# After installing, you can just type `mindshard-api` in your terminal
+mindshard-api = "mindshard_backend.main:run_server"
+mindshard-kill = "scripts.kill_port:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+# Configure the linter
+line-length = 120
+select = ["E", "F", "W", "I"] # Standard checks + isort compatibility
+
+[tool.black]
+# Configure the formatter
+line-length = 120

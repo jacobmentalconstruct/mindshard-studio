@@ -1,0 +1,70 @@
+# --- Secrets & Environment Variables ---
+# Never, ever commit your environment variables, especially API keys!
+.env
+.env.local
+
+# --- Large Files & LLM Models ---
+# The GGUF model is too large for GitHub. It should be downloaded separately.
+# Any binary model files
+models/*.gguf
+models/*.bin
+
+# --- Generated Databases & Vector Stores ---
+# Do not commit the vector store databases. They are generated.
+chroma_db/
+chroma_db_conversations/
+chroma_db_knowledge/
+chroma_db_personal_memory/
+*.sqlite3
+# Potentially other DB files
+*.db/
+
+# --- Python Generated Files & Environments ---
+# Standard Python ignores
+__pycache__/
+*.pyc
+.venv/
+venv/
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+# General package installer environments
+.Python/
+.env/
+
+# --- Node.js / Frontend Generated Files & Dependencies ---
+# Node package manager directories
+node_modules/
+# Vite/npm/yarn generated build outputs
+dist/ # This will typically be your frontend build output
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.parcel-cache/ # If you ever use Parcel
+
+# --- Logs & Runtime Data ---
+# Do not commit generated logs or temporary runtime data.
+logs/
+_logs/
+memory.jsonl # Your agent's memory log
+*.log # Any generic log files
+
+# --- Test Artifacts & Temporary Debugging Files ---
+# Ignore specific test artifacts or temporary files created during testing/debugging
+test_model_*.py # Specific test files often named dynamically
+dependency_map.txt # Often a generated analysis file
+# More general pattern for temporary or generated files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp # Swap files from vim/neovim
+*.swo # Swap files from vim/neovim
+
+# --- IDE / OS Specific Files ---
+# Common editor and operating system files
+.idea/ # IntelliJ/WebStorm project files
+.vscode/ # VS Code workspace files
+.DS_Store # macOS specific
+Thumbs.db # Windows specific

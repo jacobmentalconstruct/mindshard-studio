@@ -1,0 +1,5 @@
+{
+  "name": "Mindshard AI Studio Loader",
+  "description": "A compact loading widget to monitor the startup status of the local Mindshard AI Studio server. It displays the real-time progress of various services and models as they initialize.",
+  "requestFramePermissions": []
+}

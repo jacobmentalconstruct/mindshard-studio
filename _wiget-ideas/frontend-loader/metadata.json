@@ -1,0 +1,5 @@
+{
+  "name": "AI Studio Loader",
+  "description": "A compact loader widget to monitor the startup process of a local AI development server. It provides visual feedback for different stages of the loading sequence, such as starting the dev server and exposing local and network access points.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,6 @@
+{
+  "name": "MindshardAgent Studio",
+  "description": "A dark-themed UI for the Mindshard project, featuring a project explorer, ingestion controls, and multiple dynamic panels for interacting with an AI backend.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
