@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/model_controller.py (Debug Output & LLM Params)
+# File: src/backend/model_controller.py (Debug Output & LLM Params)
 """
 🤖 LLM Inference Service (Model Controller)
 
@@ -8,7 +8,7 @@ and inference of a local Large Language Model using llama-cpp-python.
 import structlog
 from typing import Optional
 from llama_cpp import Llama
-from mindshard_backend.config import LLMSettings
+from backend.config import LLMSettings
 
 log = structlog.get_logger(__name__)
 

@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/vector_store.py (Corrected)
+# File: src/backend/vector_store.py (Corrected)
 """
 Vector store connector supporting both FAISS and ChromaDB backends.
 """

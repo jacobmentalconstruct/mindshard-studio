@@ -1,21 +1,16 @@
 
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { PanelType } from '../types';
 
 import BrowserPanel from './panels/BrowserPanel';
-import KnowledgePanel from './panels/KnowledgePanel';
 import TextEditorPanel from './panels/TextEditorPanel';
-import SystemMonitorPanel from './panels/SystemMonitorPanel';
 import { IngestionPanel } from './panels/IngestionPanel';
-import PromptManagerPanel from './panels/PromptManagerPanel';
 import VersioningPanel from './panels/VersioningPanel';
 import ProjectToolsPanel from './panels/ProjectToolsPanel';
-import WorkflowView from './panels/WorkflowView';
-import RolePanel from './panels/RolePanel';
-import MemoryPanel from './panels/MemoryPanel';
 
 
-import { DocumentTextIcon, ClipboardIcon, GlobeAltIcon, BookOpenIcon, ChartBarIcon, DocumentPlusIcon, RectangleStackIcon, WrenchScrewdriverIcon, ArrowUpTrayIcon, UsersIcon, DatabaseIcon } from './Icons';
+import { DocumentTextIcon, GlobeAltIcon, DocumentPlusIcon, RectangleStackIcon, WrenchScrewdriverIcon } from './Icons';
 
 
 interface PanelTab {
@@ -62,15 +57,8 @@ const RightSideContainer: React.FC = () => {
         { type: PanelType.Editor, icon: <DocumentTextIcon className="h-5 w-5" />, name: 'Editor' },
         { type: PanelType.Ingestion, icon: <DocumentPlusIcon className="h-5 w-5" />, name: 'Ingestion' },
         { type: PanelType.Browser, icon: <GlobeAltIcon className="h-5 w-5" />, name: 'Browser' },
-        { type: PanelType.Knowledge, icon: <BookOpenIcon className="h-5 w-5" />, name: 'Knowledge' },
-        { type: 'Workflow', icon: <RectangleStackIcon className="h-5 w-5" />, name: 'Workflow' },
-        { type: 'Roles', icon: <UsersIcon className="h-5 w-5" />, name: 'Roles' },
-        { type: 'Memory', icon: <DatabaseIcon className="h-5 w-5" />, name: 'Memory' },
-        { type: PanelType.PromptManager, icon: <ClipboardIcon className="h-5 w-5" />, name: 'Prompts' },
         { type: PanelType.Versioning, icon: <RectangleStackIcon className="h-5 w-5" />, name: 'Versioning' },
         { type: PanelType.ProjectTools, icon: <WrenchScrewdriverIcon className="h-5 w-5" />, name: 'Tools' },
-        { type: PanelType.SystemMonitor, icon: <ChartBarIcon className="h-5 w-5" />, name: 'Monitor' },
-        { type: 'Batch', icon: <ArrowUpTrayIcon className="h-5 w-5" />, name: 'Batch', disabled: true },
     ];
 
     const [panelTabs, setPanelTabs] = useState<PanelTab[]>(initialTabs);
@@ -88,12 +76,6 @@ const RightSideContainer: React.FC = () => {
     };
 
     const renderActivePanel = useCallback(() => {
-        const BatchView = () => (
-          <div className="flex items-center justify-center h-full text-gray-500">
-              Batch processing is not yet implemented.
-          </div>
-        );
-
         switch (activePanel) {
           case PanelType.Editor:
             return <TextEditorPanel />;
@@ -101,24 +83,10 @@ const RightSideContainer: React.FC = () => {
             return <IngestionPanel />;
           case PanelType.Browser:
             return <BrowserPanel />;
-          case PanelType.Knowledge:
-            return <KnowledgePanel />;
-          case PanelType.SystemMonitor:
-            return <SystemMonitorPanel />;
-          case PanelType.PromptManager:
-            return <PromptManagerPanel />;
           case PanelType.Versioning:
             return <VersioningPanel />;
            case PanelType.ProjectTools:
             return <ProjectToolsPanel />;
-          case 'Workflow':
-            return <WorkflowView />;
-          case 'Roles':
-            return <RolePanel />;
-          case 'Memory':
-            return <MemoryPanel />;
-          case 'Batch':
-            return <BatchView />;
           default:
             return <TextEditorPanel />;
         }
@@ -155,7 +123,7 @@ const RightSideContainer: React.FC = () => {
               <div className={`absolute top-0 bottom-0 left-0 w-8 bg-gradient-to-r from-gray-800 to-transparent pointer-events-none transition-opacity duration-300 ${showLeftShadow ? 'opacity-100' : 'opacity-0'}`} />
               <div className={`absolute top-0 bottom-0 right-0 w-8 bg-gradient-to-l from-gray-800 to-transparent pointer-events-none transition-opacity duration-300 ${showRightShadow ? 'opacity-100' : 'opacity-0'}`} />
             </div>
-            <div className="flex-1 overflow-hidden p-2">
+            <div className="flex-1 overflow-hidden">
               {renderActivePanel()}
             </div>
         </div>

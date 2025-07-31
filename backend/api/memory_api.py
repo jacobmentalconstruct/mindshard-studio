@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/memory_api.py (Robust Memory Fetch)
+# File: src/backend/api/memory_api.py (Robust Memory Fetch)
 """
 API endpoints for all memory-related operations, including the high-level
 MemoryLayers service and low-level MemoryManager access.

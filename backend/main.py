@@ -1,5 +1,7 @@
-# File: src/mindshard_backend/main.py (Rock Solid Foundation)
+# File: src/backend/main.py (Rock Solid Foundation)
 import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # Add this line
+
 import uvicorn
 import structlog # Import structlog for structured logging
 from contextlib import asynccontextmanager
@@ -7,28 +9,28 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 # --- Import Core Services ---
-from mindshard_backend.config import Settings, get_settings
-from mindshard_backend.model_controller import ModelController, ModelInitializationError
-from mindshard_backend.embedding import EmbeddingService
-from mindshard_backend.summarizer import SummarizerService
-from mindshard_backend.vector_store import ChromaVectorStore # Only one import needed
-from mindshard_backend.digestor import Digestor
-from mindshard_backend.digestor_manager import DigestorManager
-from mindshard_backend.memory_layers import MemoryLayers
-from mindshard_backend.memory_manager import MemoryManager
-from mindshard_backend.prompt_manager import PromptManager # Import PromptManager
+from backend.config import Settings, get_settings
+from backend.model_controller import ModelController, ModelInitializationError
+from backend.embedding import EmbeddingService
+from backend.summarizer import SummarizerService
+from backend.vector_store import ChromaVectorStore # Only one import needed
+from backend.digestor import Digestor
+from backend.digestor_manager import DigestorManager
+from backend.memory_layers import MemoryLayers
+from backend.memory_manager import MemoryManager
+from backend.prompt_manager import PromptManager # Import PromptManager
 
 # --- Import API Routers ---
-from mindshard_backend.api.orchestrator_api import orchestrator_api
-from mindshard_backend.api.system_api import sys_api
-from mindshard_backend.api.project_tools_api import tools_api 
-from mindshard_backend.api.workflow_api import wf_api
-from mindshard_backend.api.rag_api import rag_api
-from mindshard_backend.api.roles_api import roles_api
-from mindshard_backend.api.knowledge_manager_api import knowledge_api
-from mindshard_backend.api.memory_api import memory_api
-from mindshard_backend.api.versioning_api import versioning_api
-from mindshard_backend.api.prompt_api import prompt_api # Import prompt_api
+from backend.api.orchestrator_api import orchestrator_api
+from backend.api.system_api import sys_api
+from backend.api.project_tools_api import tools_api 
+from backend.api.workflow_api import wf_api
+from backend.api.rag_api import rag_api
+from backend.api.roles_api import roles_api
+from backend.api.knowledge_manager_api import knowledge_api
+from backend.api.memory_api import memory_api
+from backend.api.versioning_api import versioning_api
+from backend.api.prompt_api import prompt_api # Import prompt_api
 
 log = structlog.get_logger(__name__) # Initialize logger
 
@@ -153,7 +155,7 @@ def run_server():
     This is called when the script is executed directly or via `mindshard-api` entrypoint.
     """
     uvicorn.run(
-        "mindshard_backend.main:app",
+        "backend.main:app",
         host=os.getenv("HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "8000")),
         reload=False, # Set to True for development to enable hot-reloading

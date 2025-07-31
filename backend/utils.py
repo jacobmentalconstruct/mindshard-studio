@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/utils.py
+# File: src/backend/utils.py
 """
 Utility functions for MindshardAPI backend.
 """

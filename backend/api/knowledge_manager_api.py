@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/knowledge_manager_api.py (Final Corrected Version)
+# File: src/backend/api/knowledge_manager_api.py (Final Corrected Version)
 """
 API for managing external knowledge sources (files, URLs).
 """
@@ -208,7 +208,7 @@ async def create_knowledge_base(
         new_store = ChromaVectorStore(persist_directory=f"chroma_db_{kb_id}", collection_name=kb_id)
         
         # A safer way to import to avoid circular dependency issues
-        from mindshard_backend.digestor import Digestor
+        from backend.digestor import Digestor
         new_digestor = Digestor(store=new_store, embedder=embedding_svc.encode)
         
         dm.register_instance(kb_id, new_digestor)

@@ -1,4 +1,5 @@
 
+
 export interface Scratchpad {
   thought: string;
   action: 'tool_call' | 'final_answer';
@@ -89,7 +90,8 @@ export type StreamEntry =
   | { id: string; type: 'thought'; text: string }
   | { id: string; type: 'tool_call'; tool_name: string; tool_args: Record<string, any> }
   | { id: string; type: 'final_answer'; text: string }
-  | { id: string; type: 'error', text: string };
+  | { id: string; type: 'error', text: string }
+  | { id: string; type: 'full_scratchpad', scratchpad: Scratchpad };
 
 
 export interface ChatMessage {

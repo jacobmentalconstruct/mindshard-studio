@@ -8,9 +8,9 @@ build-backend = "setuptools.build_meta"
 name = "mindshard-api"
 version = "0.1.0"
 authors = [
-  { name="Your Name", email="you@example.com" },
+  { name="Jacob Lambert", email="jacobmentalconstruct@gmail.com" },
 ]
-description = "The core backend for the MindshardAI application, providing services for memory, RAG, and intelligent workflows."
+description = "The core backend for the MindshardStudio application, providing services for memory, RAG, and intelligent workflows."
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
@@ -73,11 +73,10 @@ dev = [
 [project.scripts]
 # This creates a command-line script to run the server
 # After installing, you can just type `mindshard-api` in your terminal
-mindshard-api = "mindshard_backend.main:run_server"
+mindshard-api = "backend.main:run_server"
 mindshard-kill = "scripts.kill_port:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
 
 [tool.ruff]
 # Configure the linter

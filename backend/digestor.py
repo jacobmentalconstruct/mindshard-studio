@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/digestor.py
+# File: src/backend/digestor.py
 """
 Digestor: a robust, high-performance ingestion and retrieval service for RAG workflows.
 
@@ -18,8 +18,8 @@ from typing import List, Dict, Any, Optional, Callable
 
 from prometheus_client import Counter, Summary
 
-from mindshard_backend.utils import chunk_text
-from mindshard_backend.vector_store import VectorStore
+from backend.utils import chunk_text
+from backend.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 

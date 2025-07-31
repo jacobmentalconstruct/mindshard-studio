@@ -153,7 +153,7 @@ const WorkflowView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 text-sm">
-            <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2">Inference › Workflow</h2>
+            <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2">Workflows</h2>
 
             <div className="flex-1 flex space-x-4 min-h-0">
                 {/* Left Panel: Selector & Steps */}

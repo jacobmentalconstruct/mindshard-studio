@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/services/project_engine.py
+# File: src/backend/services/project_engine.py
 """
 ⚙️ Project Vector Store Factory
 
@@ -7,8 +7,8 @@ for the "active_project" RAG using a declarative, strategy-based approach.
 """
 import structlog
 from typing import Dict, Any, Callable, Type
-from mindshard_backend.config import EmbeddingSettings
-from mindshard_backend.vector_store import FaissVectorStore, ChromaVectorStore, VectorStore
+from backend.config import EmbeddingSettings
+from backend.vector_store import FaissVectorStore, ChromaVectorStore, VectorStore
 
 log = structlog.get_logger(__name__)
 

@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/system_api.py (Corrected)
+# File: src/backend/api/system_api.py (Corrected)
 
 import asyncio
 import psutil

@@ -154,7 +154,7 @@ const RolePanel: React.FC = () => {
 
     return (
         <div className="p-4">
-        <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2 mb-4">Inference › Roles</h2>
+        <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2 mb-4">Roles</h2>
         <div className="flex h-full space-x-4" style={{maxHeight: 'calc(100vh - 200px)'}}>
             {/* Left Column: List */}
             <div className="w-1/3 flex flex-col border-r border-gray-700 pr-4">

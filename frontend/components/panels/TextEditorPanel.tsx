@@ -1,8 +1,9 @@
 
+
 import React, { useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { Editor, useMonaco } from "@monaco-editor/react";
 import FrameBox from '../FrameBox';
-import { PlusIcon, DocumentTextIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, LinkIcon, ListBulletIcon, CodeBracketIcon, ChatBubbleOvalLeftEllipsisIcon, ChevronDownIcon } from '../Icons';
+import { PlusIcon, DocumentTextIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, LinkIcon, ListBulletIcon, CodeBracketIcon, ChatBubbleOvalLeftEllipsisIcon, ChevronDownIcon, BrainCircuitIcon } from '../Icons';
 import { OpenFileContext, ApiKeyContext, TaskContext, EditorContext } from '../../App';
 import { runOcr, injectContextIntoTask } from '../../services/mindshardService';
 import { EditorTab } from '../../types';
@@ -240,11 +241,17 @@ const TextEditorPanel: React.FC = () => {
     }, [activeTabPath, openTabs, handleSaveTab, handleSaveAllTabs, handleCloseTab]);
 
     return (
-        <FrameBox 
-          title="Editor"
-          agentAware={isAgentAware}
-          onToggleAgentAware={() => setIsAgentAware(p => !p)}
-        >
+        <div className="p-4 flex flex-col h-full">
+            <header className="flex-shrink-0 flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
+                <h2 className="text-xl font-bold text-gray-200">Editor</h2>
+                <button
+                    onClick={() => setIsAgentAware(p => !p)}
+                    title={isAgentAware ? "The AI agent is aware of this panel's context." : "The AI agent is NOT aware of this panel's context."}
+                    className={`p-1 rounded-full transition-colors ${isAgentAware ? 'text-cyan-400 bg-cyan-900/50 hover:bg-cyan-800/50' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'}`}
+                 >
+                    <BrainCircuitIcon className="h-4 w-4" />
+                 </button>
+            </header>
             <div className="flex flex-col h-full">
                 {/* Tab Bar */}
                 <div className="flex-shrink-0 flex items-center border-b border-gray-700 bg-gray-900/50">
@@ -337,7 +344,7 @@ const TextEditorPanel: React.FC = () => {
                       </div>
                 </div>
             </div>
-        </FrameBox>
+        </div>
     );
 };
 

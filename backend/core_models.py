@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/core_models.py (Final Fix)
+# File: src/backend/core_models.py (Final Fix)
 """
 🧠 Core data models for the MindshardAI cognitive engine.
 """

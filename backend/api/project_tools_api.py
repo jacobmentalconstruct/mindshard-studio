@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/project_tools_api.py (Corrected and Final)
+# File: src/backend/api/project_tools_api.py (Corrected and Final)
 """
 API endpoints for project-level tools, such as inspecting the
 local Conda environment.
@@ -61,7 +61,7 @@ def list_models_in_path(req: ListModelsRequest):
     Safely lists all .gguf and .bin files from a specified directory
     within the project root.
     """
-    project_root = Path(__file__).parent.parent.parent.parent.resolve()
+    project_root = Path(__file__).parent.parent.parent.resolve()
     target_dir = (project_root / req.path).resolve()
 
     # --- SECURITY CHECK ---
@@ -143,7 +143,7 @@ def server_logs():
 @tools_api.post("/tools/project/get-file-content", response_model=FileContentResponse)
 def get_file_content(req: FilePathRequest):
     """Safely reads and returns the content of a file within the project."""
-    project_root = Path(__file__).parent.parent.parent.parent.resolve()
+    project_root = Path(__file__).parent.parent.resolve()
     file_path = resolve_safe_path(project_root, req.path)
 
     if not file_path.is_file():
@@ -164,7 +164,7 @@ def get_file_content(req: FilePathRequest):
 @tools_api.post("/tools/project/save-file-content", response_model=SuccessResponse)
 def save_file_content(req: FileWriteRequest):
     """Safely writes content to a file within the project."""
-    project_root = Path(__file__).parent.parent.parent.parent.resolve()
+    project_root = Path(__file__).parent.parent.resolve()
     file_path = resolve_safe_path(project_root, req.path)
 
     try:
@@ -179,7 +179,7 @@ def save_file_content(req: FileWriteRequest):
 def run_ocr(req: OcrRequest):
     """Runs Tesseract OCR on an image file within the project."""
     log.info("OCR request received", path=req.path)
-    project_root = Path(__file__).parent.parent.parent.parent.resolve()
+    project_root = Path(__file__).parent.parent.resolve()
     file_path = resolve_safe_path(project_root, req.path)
 
     if not file_path.is_file():

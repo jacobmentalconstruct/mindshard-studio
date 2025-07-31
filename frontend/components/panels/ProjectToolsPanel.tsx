@@ -3,7 +3,7 @@ import FrameBox from '../FrameBox';
 import { ApiKeyContext, ProjectFilesContext } from '../../App';
 import * as mindshardService from '../../services/mindshardService';
 import { CondaEnv, ServerStatusResponse, ServerLogEntry } from '../../types';
-import { ChevronDownIcon, ClipboardDocumentCheckIcon } from '../Icons';
+import { ChevronDownIcon, ClipboardDocumentCheckIcon, BrainCircuitIcon } from '../Icons';
 import useLocalStorage from '../../hooks/useLocalStorage';
 
 
@@ -116,11 +116,17 @@ const ProjectToolsPanel: React.FC = () => {
     };
 
     return (
-        <FrameBox 
-          title="Project Tools"
-          agentAware={isAgentAware}
-          onToggleAgentAware={() => setIsAgentAware(p => !p)}
-        >
+        <div className="p-4 flex flex-col h-full">
+            <header className="flex-shrink-0 flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
+                <h2 className="text-xl font-bold text-gray-200">Project Tools</h2>
+                <button
+                    onClick={() => setIsAgentAware(p => !p)}
+                    title={isAgentAware ? "The AI agent is aware of this panel's context." : "The AI agent is NOT aware of this panel's context."}
+                    className={`p-1 rounded-full transition-colors ${isAgentAware ? 'text-cyan-400 bg-cyan-900/50 hover:bg-cyan-800/50' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'}`}
+                 >
+                    <BrainCircuitIcon className="h-4 w-4" />
+                 </button>
+            </header>
             <div className="flex flex-col h-full space-y-4 overflow-y-auto pr-2">
                 {result && <div className="p-2 bg-cyan-900/50 border border-cyan-700 rounded-md text-cyan-300 text-sm mb-4">{isLoading ? "Loading..." : result}</div>}
 
@@ -183,7 +189,7 @@ const ProjectToolsPanel: React.FC = () => {
                     </button>
                 </AccordionSection>
             </div>
-        </FrameBox>
+        </div>
     );
 };
 

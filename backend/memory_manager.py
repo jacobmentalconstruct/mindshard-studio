@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/memory_manager.py (Updated for Granular Operations)
+# File: src/backend/memory_manager.py (Updated for Granular Operations)
 """
 Manages the agent's memory, including a working scratchpad and a
 persistent long-term memory stored in a JSONL file.

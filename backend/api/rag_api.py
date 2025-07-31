@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/rag_api.py (Corrected and Final)
+# File: src/backend/api/rag_api.py (Corrected and Final)
 """
 🎛️ API endpoints for the 'active_project' RAG instance.
 """

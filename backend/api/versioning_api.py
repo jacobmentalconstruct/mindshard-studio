@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/versioning_api.py
+# File: src/backend/api/versioning_api.py
 
 import structlog
 import subprocess

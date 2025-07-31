@@ -1,11 +1,204 @@
 
+
 import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { Editor } from "@monaco-editor/react";
 import { SystemStatus, KnowledgeBase, PromptTemplate, Role, StreamEntry, Scratchpad, SystemMetrics } from '../../types';
-import { listModels, loadModel, unloadModel, getSystemStatus, getKnowledgeBases, listPromptTemplates, commitScratchpad, listRoles, selectFolder, streamCognitiveLogs, getSystemMetrics, saveFileContent } from '../../services/mindshardService';
+import { listModels, loadModel, unloadModel, getSystemStatus, getKnowledgeBases, listPromptTemplates, listRoles, selectFolder, streamCognitiveLogs, getSystemMetrics, saveFileContent } from '../../services/mindshardService';
 import { ApiKeyContext, InspectionContext, RoleContext, EditorContext } from '../../App';
 import useLocalStorage from '../../hooks/useLocalStorage';
-import { PaperAirplaneIcon, ClipboardDocumentCheckIcon, FolderIcon, BrainCircuitIcon, WrenchScrewdriverIcon, Cog6ToothIcon } from '../Icons';
+import { PaperAirplaneIcon, ClipboardDocumentCheckIcon, FolderIcon, BrainCircuitIcon, WrenchScrewdriverIcon, Cog6ToothIcon, BookOpenIcon, ChartBarIcon, ClipboardIcon, RectangleStackIcon, UsersIcon, PencilIcon } from '../Icons';
+import FrameBox from '../FrameBox';
+import KnowledgePanel from './KnowledgePanel';
+import SystemMonitorPanel from './SystemMonitorPanel';
+import PromptManagerPanel from './PromptManagerPanel';
+import WorkflowView from './WorkflowView';
+import RolePanel from './RolePanel';
+
+// --- Helper component for the Thought Stream tab ---
+const ThoughtStreamPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ streamEntries }) => {
+    const thoughts = streamEntries.filter((entry): entry is Extract<StreamEntry, { type: 'thought' }> => entry.type === 'thought');
+    
+    return (
+        <div className="p-4 flex flex-col h-full">
+            <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2 mb-4 flex-shrink-0">Thoughts</h2>
+            <div className="flex flex-col h-full">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                    {thoughts.map((entry) => (
+                        <div key={entry.id} className="bg-gray-700/50 p-3 rounded-lg animate-fade-in">
+                            <div className="flex items-start space-x-2">
+                                <BrainCircuitIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
+                                <p className="text-gray-300 text-sm">{entry.text}</p>
+                            </div>
+                        </div>
+                    ))}
+                    {thoughts.length === 0 && (
+                        <div className="text-center text-gray-500 text-sm pt-4">Thoughts from the AI will appear here as it works.</div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Helper component for the Scratchpads tab ---
+const ScratchpadsPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ streamEntries }) => {
+    const scratchpads = streamEntries.filter(
+        (entry): entry is Extract<StreamEntry, { type: 'full_scratchpad' }> => entry.type === 'full_scratchpad'
+    );
+    
+    return (
+        <div className="p-4 flex flex-col h-full">
+             <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2 mb-4 flex-shrink-0">Scratchpads</h2>
+            <div className="flex flex-col h-full">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                    {scratchpads.map((entry) => (
+                        <div key={entry.id} className="bg-gray-700/50 p-3 rounded-lg animate-fade-in border border-gray-600">
+                            <div className="flex items-start space-x-2">
+                                <BrainCircuitIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
+                                <p className="text-gray-300 text-sm font-semibold">{entry.scratchpad.thought}</p>
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-gray-600/50">
+                                {entry.scratchpad.action === 'tool_call' && entry.scratchpad.tool_payload && (
+                                    <div className="text-sm">
+                                        <span className="font-bold text-cyan-400">Action: </span>
+                                        <span className="font-mono text-cyan-300">{entry.scratchpad.tool_payload.name}</span>
+                                        <pre className="bg-gray-900/70 p-2 mt-1 rounded-md text-xs font-mono text-gray-300 overflow-x-auto">
+                                            {JSON.stringify(entry.scratchpad.tool_payload.args, null, 2)}
+                                        </pre>
+                                    </div>
+                                )}
+                                {entry.scratchpad.action === 'final_answer' && (
+                                    <div>
+                                        <span className="font-bold text-green-400">Action: </span>
+                                        <span>Final Answer</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {scratchpads.length === 0 && (
+                        <div className="text-center text-gray-500 text-sm pt-4">Scratchpads will appear here as the AI works.</div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// --- The new Auxiliary Panel with multiple tabs ---
+interface AuxiliaryPanelProps {
+    streamEntries: StreamEntry[];
+}
+interface PanelTab {
+    type: string;
+    icon: React.ReactNode;
+    name: string;
+}
+const AuxiliaryPanel: React.FC<AuxiliaryPanelProps> = ({ streamEntries }) => {
+    const navRef = useRef<HTMLDivElement>(null);
+    const [showLeftShadow, setShowLeftShadow] = useState(false);
+    const [showRightShadow, setShowRightShadow] = useState(false);
+    const dragItem = useRef<number | null>(null);
+    const dragOverItem = useRef<number | null>(null);
+
+    const initialTabs: PanelTab[] = [
+        { type: 'ThoughtStream', icon: <BrainCircuitIcon className="h-5 w-5" />, name: 'Thoughts' },
+        { type: 'Scratchpads', icon: <PencilIcon className="h-5 w-5" />, name: 'Scratchpads' },
+        { type: 'Workflow', icon: <RectangleStackIcon className="h-5 w-5" />, name: 'Workflow' },
+        { type: 'Roles', icon: <UsersIcon className="h-5 w-5" />, name: 'Roles' },
+        { type: 'Prompts', icon: <ClipboardIcon className="h-5 w-5" />, name: 'Prompts' },
+        { type: 'Knowledge', icon: <BookOpenIcon className="h-5 w-5" />, name: 'Library of KBs' },
+        { type: 'Monitor', icon: <ChartBarIcon className="h-5 w-5" />, name: 'Monitor' },
+    ];
+    
+    const [panelTabs, setPanelTabs] = useState<PanelTab[]>(initialTabs);
+    const [activePanel, setActivePanel] = useState<string>('ThoughtStream');
+
+    const handleScroll = useCallback(() => {
+        const nav = navRef.current;
+        if (nav) {
+            const { scrollLeft, scrollWidth, clientWidth } = nav;
+            const PADDING = 1;
+            setShowLeftShadow(scrollLeft > PADDING);
+            setShowRightShadow(scrollLeft < scrollWidth - clientWidth - PADDING);
+        }
+    }, []);
+
+    useEffect(() => {
+        const nav = navRef.current;
+        if (nav) {
+            handleScroll();
+            nav.addEventListener('scroll', handleScroll, { passive: true });
+            const resizeObserver = new ResizeObserver(handleScroll);
+            resizeObserver.observe(nav);
+            return () => {
+                nav.removeEventListener('scroll', handleScroll);
+                resizeObserver.unobserve(nav);
+            };
+        }
+    }, [handleScroll]);
+
+    const handleDrop = () => {
+        const newTabs = [...panelTabs];
+        if (dragItem.current !== null && dragOverItem.current !== null) {
+            const draggedItemContent = newTabs.splice(dragItem.current, 1)[0];
+            newTabs.splice(dragOverItem.current, 0, draggedItemContent);
+        }
+        dragItem.current = null;
+        dragOverItem.current = null;
+        setPanelTabs(newTabs);
+    };
+    
+    const renderActivePanel = useCallback(() => {
+        switch (activePanel) {
+            case 'ThoughtStream': return <ThoughtStreamPanel streamEntries={streamEntries} />;
+            case 'Scratchpads': return <ScratchpadsPanel streamEntries={streamEntries} />;
+            case 'Workflow': return <WorkflowView />;
+            case 'Roles': return <RolePanel />;
+            case 'Prompts': return <PromptManagerPanel />;
+            case 'Knowledge': return <KnowledgePanel />;
+            case 'Monitor': return <SystemMonitorPanel />;
+            default: return <ThoughtStreamPanel streamEntries={streamEntries} />;
+        }
+    }, [activePanel, streamEntries]);
+
+    return (
+        <div className="flex flex-col h-full bg-gray-800 text-gray-200 font-sans">
+            <div className="border-b border-gray-700 relative">
+              <div ref={navRef} className="overflow-x-auto">
+                <nav className="flex space-x-1" aria-label="Tabs" onDragOver={(e) => e.preventDefault()}>
+                  {panelTabs.map((tab, index) => (
+                    <button
+                      key={tab.type}
+                      onClick={() => setActivePanel(tab.type)}
+                      title={tab.name}
+                      draggable
+                      onDragStart={() => dragItem.current = index}
+                      onDragEnter={() => dragOverItem.current = index}
+                      onDragEnd={handleDrop}
+                      onDragOver={(e) => e.preventDefault()}
+                      className={`
+                        ${activePanel === tab.type ? 'border-cyan-400 text-cyan-400 bg-gray-900/50' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'}
+                        flex-shrink-0 flex items-center justify-center whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200
+                      `}
+                    >
+                      {tab.icon}
+                      <span className="ml-2">{tab.name}</span>
+                    </button>
+                  ))}
+                </nav>
+              </div>
+              <div className={`absolute top-0 bottom-0 left-0 w-8 bg-gradient-to-r from-gray-800 to-transparent pointer-events-none transition-opacity duration-300 ${showLeftShadow ? 'opacity-100' : 'opacity-0'}`} />
+              <div className={`absolute top-0 bottom-0 right-0 w-8 bg-gradient-to-l from-gray-800 to-transparent pointer-events-none transition-opacity duration-300 ${showRightShadow ? 'opacity-100' : 'opacity-0'}`} />
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {renderActivePanel()}
+            </div>
+        </div>
+    );
+};
+
 
 const CodeBlock: React.FC<{ language: string; content: string }> = ({ language, content }) => {
     const [copied, setCopied] = useState(false);
@@ -253,45 +446,51 @@ const InferencePanel: React.FC = () => {
         apiKey,
         userMessage.text,
         (scratchpad: Scratchpad) => {
+            const newEntries: StreamEntry[] = [];
+            const now = Date.now();
+            
+            // New entry for the "Scratchpads" tab
+            newEntries.push({
+                id: `msg-${now}-fs`,
+                type: 'full_scratchpad',
+                scratchpad: scratchpad,
+            });
+
+            // Entry for the "Thoughts" tab
+            newEntries.push({
+                id: `msg-${now}-th`,
+                type: 'thought',
+                text: scratchpad.thought,
+            });
+            
             if (scratchpad.action === 'tool_call') {
-                 const thoughtEntry: StreamEntry = {
-                    id: `msg-${Date.now()}-thought`,
-                    type: 'thought',
-                    text: scratchpad.thought,
-                };
-                
-                const toolEntry: StreamEntry = {
-                    id: `msg-${Date.now()}`,
+                newEntries.push({
+                    id: `msg-${now}-tc`,
                     type: 'tool_call',
                     tool_name: scratchpad.tool_payload!.name,
                     tool_args: scratchpad.tool_payload!.args,
-                };
-                setStreamEntries(prev => [...prev, thoughtEntry, toolEntry]);
-
-                // Handle file edits
-                if(scratchpad.tool_payload?.name === 'edit_file') {
-                    const { path, content } = scratchpad.tool_payload.args;
-                    saveFileContent(path, content);
-                    setOpenTabs(prevTabs => 
-                        prevTabs.map(tab => 
-                            tab.path === path 
-                            ? { ...tab, content: content, isDirty: true }
-                            : tab
-                        )
-                    );
-                }
+                });
             } else if (scratchpad.action === 'final_answer') {
-                 const thoughtEntry: StreamEntry = {
-                    id: `msg-${Date.now()}-thought`,
-                    type: 'thought',
-                    text: scratchpad.thought,
-                };
-                 const answerEntry: StreamEntry = {
-                    id: `msg-${Date.now()}`,
+                newEntries.push({
+                    id: `msg-${now}-fa`,
                     type: 'final_answer',
                     text: scratchpad.tool_payload?.args.text || "I have completed the task.",
-                };
-                setStreamEntries(prev => [...prev, thoughtEntry, answerEntry]);
+                });
+            }
+
+            setStreamEntries(prev => [...prev, ...newEntries]);
+
+            // Side effect for file editing
+            if (scratchpad.action === 'tool_call' && scratchpad.tool_payload?.name === 'edit_file') {
+                const { path, content } = scratchpad.tool_payload.args;
+                saveFileContent(path, content);
+                setOpenTabs(prevTabs => 
+                    prevTabs.map(tab => 
+                        tab.path === path 
+                        ? { ...tab, content: content, isDirty: true }
+                        : tab
+                    )
+                );
             }
         },
         () => {
@@ -459,65 +658,67 @@ const InferencePanel: React.FC = () => {
   
   const ConsciousStreamView = () => (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {streamEntries.length === 0 && <div className="text-center text-gray-500 pt-8">{status.model_status === 'unloaded' ? 'Model not loaded. Please load a model in the Settings tab to begin.' : 'Send a message to start the conversation.'}</div>}
-          
-          {streamEntries.map((entry) => {
-            switch (entry.type) {
-                case 'user':
-                    return (
-                        <div key={entry.id} className="flex justify-end">
-                            <div className="max-w-xl p-3 rounded-lg bg-cyan-600">{entry.text}</div>
-                        </div>
-                    );
-                case 'thought':
-                    return (
-                        <div key={entry.id} className="flex justify-start items-center my-3 mx-4">
-                            <BrainCircuitIcon className="w-5 h-5 text-gray-500 mr-3 flex-shrink-0" />
-                            <p className="text-gray-400 italic text-sm">{entry.text}</p>
-                        </div>
-                    );
-                case 'tool_call':
-                    return (
-                         <div key={entry.id} className="flex justify-start my-3">
-                            <div className="max-w-xl p-3 rounded-lg bg-gray-700/60 border border-gray-600 w-full">
-                                <div className="flex items-center space-x-2 mb-2 text-sm">
-                                    <WrenchScrewdriverIcon className="w-5 h-5 text-cyan-400" />
-                                    <span className="font-bold text-gray-300">Tool Call:</span>
-                                    <span className="font-mono text-cyan-300">{entry.tool_name}</span>
-                                </div>
-                                <pre className="bg-gray-900/70 p-2 rounded-md text-xs font-mono text-gray-300 overflow-x-auto">
-                                    {JSON.stringify(entry.tool_args, null, 2)}
-                                </pre>
-                            </div>
-                         </div>
-                    );
-                case 'final_answer':
-                    const parsedParts = parseMessageText(entry.text);
-                    return (
-                        <div key={entry.id} className="flex justify-start">
-                             <div className="max-w-xl p-3 rounded-lg bg-gray-700">
-                                {parsedParts.map((part, i) => part.type === 'code' ? <CodeBlock key={i} language={part.language!} content={part.content} /> : <p key={i} className="whitespace-pre-wrap">{part.content}</p>)}
-                             </div>
-                        </div>
-                    );
-                case 'error':
-                    return (
-                        <div key={entry.id} className="flex justify-center">
-                            <div className="w-full bg-red-800/30 p-3 my-2 rounded-lg border border-red-500/50 text-red-300">{entry.text}</div>
-                        </div>
-                    );
-                default:
-                    return null;
-            }
-          })}
+        <div className="flex-1 flex overflow-hidden bg-gray-900">
+            {/* Left Column: Main Chat */}
+            <div className="w-3/4 h-full flex flex-col border-r border-gray-700">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {streamEntries.length === 0 && <div className="text-center text-gray-500 pt-8">{status.model_status === 'unloaded' ? 'Model not loaded. Please load a model in the Settings tab to begin.' : 'Send a message to start the conversation.'}</div>}
+                    
+                    {streamEntries.map((entry) => {
+                      switch (entry.type) {
+                          case 'user':
+                              return (
+                                  <div key={entry.id} className="flex justify-end">
+                                      <div className="max-w-xl p-3 rounded-lg bg-cyan-600 text-white">{entry.text}</div>
+                                  </div>
+                              );
+                          case 'tool_call':
+                              return (
+                                   <div key={entry.id} className="flex justify-start my-3">
+                                      <div className="max-w-xl p-3 rounded-lg bg-gray-700/60 border border-gray-600 w-full">
+                                          <div className="flex items-center space-x-2 mb-2 text-sm">
+                                              <WrenchScrewdriverIcon className="w-5 h-5 text-cyan-400" />
+                                              <span className="font-bold text-gray-300">Tool Call:</span>
+                                              <span className="font-mono text-cyan-300">{entry.tool_name}</span>
+                                          </div>
+                                          <pre className="bg-gray-900/70 p-2 rounded-md text-xs font-mono text-gray-300 overflow-x-auto">
+                                              {JSON.stringify(entry.tool_args, null, 2)}
+                                          </pre>
+                                      </div>
+                                   </div>
+                              );
+                          case 'final_answer':
+                              const parsedParts = parseMessageText(entry.text);
+                              return (
+                                  <div key={entry.id} className="flex justify-start">
+                                       <div className="max-w-xl p-3 rounded-lg bg-gray-700">
+                                          {parsedParts.map((part, i) => part.type === 'code' ? <CodeBlock key={i} language={part.language!} content={part.content} /> : <p key={i} className="whitespace-pre-wrap">{part.content}</p>)}
+                                       </div>
+                                  </div>
+                              );
+                          case 'error':
+                              return (
+                                  <div key={entry.id} className="flex justify-center">
+                                      <div className="w-full bg-red-800/30 p-3 my-2 rounded-lg border border-red-500/50 text-red-300">{entry.text}</div>
+                                  </div>
+                              );
+                          default:
+                              return null;
+                      }
+                    })}
+                    <div ref={chatEndRef} />
+                </div>
+                <form onSubmit={handleSubmit} className="p-2 border-t border-gray-700 flex items-center space-x-2">
+                    <textarea value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }} placeholder="Type your message here..." rows={2} disabled={isBusy || status.model_status !== 'loaded'} className="flex-grow bg-gray-700 p-2 rounded disabled:bg-gray-800" />
+                    <button type="submit" disabled={isBusy || status.model_status !== 'loaded'} className="bg-cyan-500 p-3 rounded-lg disabled:bg-gray-600"><PaperAirplaneIcon className="h-6 w-6" /></button>
+                </form>
+            </div>
 
-          <div ref={chatEndRef} />
-      </div>
-       <form onSubmit={handleSubmit} className="p-2 border-t border-gray-700 flex items-center space-x-2">
-            <textarea value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }} placeholder="Type your message here..." rows={2} disabled={isBusy || status.model_status !== 'loaded'} className="flex-grow bg-gray-700 p-2 rounded disabled:bg-gray-800" />
-            <button type="submit" disabled={isBusy || status.model_status !== 'loaded'} className="bg-cyan-500 p-3 rounded-lg disabled:bg-gray-600"><PaperAirplaneIcon className="h-6 w-6" /></button>
-        </form>
+            {/* Right Column: New Auxiliary Panel */}
+            <div className="w-1/4 h-full">
+                <AuxiliaryPanel streamEntries={streamEntries} />
+            </div>
+        </div>
     </div>
   );
 
@@ -579,7 +780,7 @@ const InferencePanel: React.FC = () => {
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-gray-900/50">
+            <div className="flex-1 overflow-y-auto">
                 {activeTab === 'Chat' && <ConsciousStreamView />}
                 {activeTab === 'Settings' && <SettingsView />}
             </div>

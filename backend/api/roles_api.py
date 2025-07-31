@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/roles_api.py (Updated for SQLite Persistence)
+# File: src/backend/api/roles_api.py (Updated for SQLite Persistence)
 """
 API endpoints for creating, managing, and using Roles (personas).
 

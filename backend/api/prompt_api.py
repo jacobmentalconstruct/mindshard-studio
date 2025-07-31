@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/prompt_api.py (Corrected Import)
+# File: src/backend/api/prompt_api.py (Corrected Import)
 """
 API Endpoints for the Prompt Engineering Co-pilot.
 """

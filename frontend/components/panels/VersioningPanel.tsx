@@ -4,6 +4,7 @@ import { getCommits, createSnapshot, revertToCommit } from '../../services/minds
 import { ApiKeyContext } from '../../App';
 import FrameBox from '../FrameBox';
 import useLocalStorage from '../../hooks/useLocalStorage';
+import { BrainCircuitIcon } from '../Icons';
 
 const DiffLine: React.FC<{ line: string }> = ({ line }) => {
     const isAdded = line.startsWith('+');
@@ -66,11 +67,17 @@ const VersioningPanel: React.FC = () => {
 
 
     return (
-        <FrameBox 
-          title="Versioning & Backup"
-          agentAware={isAgentAware}
-          onToggleAgentAware={() => setIsAgentAware(p => !p)}
-        >
+        <div className="p-4 flex flex-col h-full">
+            <header className="flex-shrink-0 flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
+                <h2 className="text-xl font-bold text-gray-200">Versioning & Backup</h2>
+                <button
+                    onClick={() => setIsAgentAware(p => !p)}
+                    title={isAgentAware ? "The AI agent is aware of this panel's context." : "The AI agent is NOT aware of this panel's context."}
+                    className={`p-1 rounded-full transition-colors ${isAgentAware ? 'text-cyan-400 bg-cyan-900/50 hover:bg-cyan-800/50' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'}`}
+                 >
+                    <BrainCircuitIcon className="h-4 w-4" />
+                 </button>
+            </header>
             <div className="flex flex-col h-full space-y-4">
                 {/* Toolbar */}
                 <div className="flex-shrink-0 flex items-center space-x-2 p-2 bg-gray-900/50 rounded-md border border-gray-700">
@@ -134,7 +141,7 @@ const VersioningPanel: React.FC = () => {
                     <div className="text-sm text-gray-500">Integration and backup settings will appear here. (Not implemented)</div>
                 </div>
             </div>
-        </FrameBox>
+        </div>
     );
 };
 

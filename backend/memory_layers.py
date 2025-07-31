@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/memory_layers.py
+# File: src/backend/memory_layers.py
 """
 Memory Layers: orchestrates multi-tiered memory for RAG workflows with built-in observability and resilience.
 
@@ -22,8 +22,8 @@ from typing import List, Dict, Any, Optional, Callable
 
 from prometheus_client import Counter, Summary
 
-from mindshard_backend.memory_manager import MemoryEntry, MemoryManager
-from mindshard_backend.digestor import Digestor
+from backend.memory_manager import MemoryEntry, MemoryManager
+from backend.digestor import Digestor
 
 logger = logging.getLogger(__name__)
 

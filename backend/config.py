@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/config.py (Corrected)
+# File: src/backend/config.py (Corrected)
 """
 Centralized, validated, and structured configuration for the Mindshard Backend.
 Uses pydantic-settings for environment-aware configuration with startup validation.
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix='MIND_',
         # Construct an absolute path to the .env file in the project root
-        env_file=Path(__file__).parent.parent.parent / '.env',
+        env_file=Path(__file__).parent.parent / '.env',
         env_file_encoding='utf-8',
         extra=Extra.ignore,
         env_nested_delimiter='__'
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
         """Performs robust checks after the model is initialized."""
         # Note: Pydantic now resolves the model_path relative to the .env file.
         # We might need to make it absolute if it's relative to the project root.
-        project_root = Path(__file__).parent.parent.parent
+        project_root = Path(__file__).parent.parent
         
         # Resolve the model path relative to the project root if it's not absolute
         if not self.llm.model_path.is_absolute():

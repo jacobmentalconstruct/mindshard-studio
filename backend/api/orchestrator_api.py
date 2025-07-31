@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/orchestrator_api.py
+# File: src/backend/api/orchestrator_api.py
 
 import json
 import asyncio

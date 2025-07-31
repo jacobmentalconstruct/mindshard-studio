@@ -1,5 +1,5 @@
       
-# File: src/mindshard_backend/summarizer.py (FINAL ISOLATED PROCESS FIX)
+# File: src/backend/summarizer.py (FINAL ISOLATED PROCESS FIX)
 import structlog
 from typing import Optional
 # We need multiprocessing and Process, Queue from it
@@ -12,7 +12,7 @@ from multiprocessing import Process, Queue
 # from sumy.nlp.tokenizers import Tokenizer
 # from sumy.summarizers.lsa import LsaSummarizer as ExtractiveSummarizer
 
-from mindshard_backend.config import SummarizerSettings
+from backend.config import SummarizerSettings
 
 log = structlog.get_logger(__name__)
 

@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/embedding.py
+# File: src/backend/embedding.py
 """
 🧠 Embedding Generation Service
 
@@ -9,7 +9,7 @@ import structlog
 from typing import List, Union, Optional
 import torch
 from sentence_transformers import SentenceTransformer
-from mindshard_backend.config import EmbeddingSettings
+from backend.config import EmbeddingSettings
 
 log = structlog.get_logger(__name__)
 

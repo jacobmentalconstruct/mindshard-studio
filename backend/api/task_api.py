@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/task_api.py (Updated for Persistent Storage)
+# File: src/backend/api/task_api.py (Updated for Persistent Storage)
 """
 🗂️ API for hierarchical task management.
 """

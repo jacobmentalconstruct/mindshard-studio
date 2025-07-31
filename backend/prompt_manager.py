@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/prompt_manager.py (Updated for SQLite Persistence)
+# File: src/backend/prompt_manager.py (Updated for SQLite Persistence)
 """
 📖 The Prompt Engineering Co-pilot for MindshardAI.
 

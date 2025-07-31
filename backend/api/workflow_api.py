@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/workflow_api.py (Updated for SQLite Persistence)
+# File: src/backend/api/workflow_api.py (Updated for SQLite Persistence)
 """
 🔀 API for creating, managing, and using complex, multi-step workflows.
 

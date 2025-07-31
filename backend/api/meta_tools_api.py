@@ -1,4 +1,4 @@
-# File: src/mindshard_backend/api/meta_tools_api.py (Corrected and Final)
+# File: src/backend/api/meta_tools_api.py (Corrected and Final)
 """
 🛠️ A toolbox of advanced meta-prompting utilities.
 """
