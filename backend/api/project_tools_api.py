@@ -6,16 +6,20 @@ local Conda environment.
 import subprocess
 import structlog
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from pathlib import Path
 import pytesseract
 from PIL import Image
 import io
+from ..config import get_settings, Settings # Add this import
 
 log = structlog.get_logger(__name__)
 # The prefix and tags are now handled dynamically by main.py
 tools_api = APIRouter()
+
+# Define project_root globally for this module
+project_root = Path(__file__).parent.parent.resolve()
 
 # --- Pydantic Models ---
 class OcrRequest(BaseModel):
@@ -56,12 +60,14 @@ def resolve_safe_path(project_root: Path, requested_path: str) -> Path:
     response_model=List[str],
     summary="List model files from a directory"
 )
-def list_models_in_path(req: ListModelsRequest):
+
+def list_models_in_path(req: ListModelsRequest, settings: Settings = Depends(get_settings)):
     """
     Safely lists all .gguf and .bin files from a specified directory
     within the project root.
     """
-    project_root = Path(__file__).parent.parent.parent.resolve()
+        
+    # Calculate project_root from the settings, which is more reliable
     target_dir = (project_root / req.path).resolve()
 
     # --- SECURITY CHECK ---
@@ -143,7 +149,6 @@ def server_logs():
 @tools_api.post("/tools/project/get-file-content", response_model=FileContentResponse)
 def get_file_content(req: FilePathRequest):
     """Safely reads and returns the content of a file within the project."""
-    project_root = Path(__file__).parent.parent.resolve()
     file_path = resolve_safe_path(project_root, req.path)
 
     if not file_path.is_file():
@@ -164,7 +169,6 @@ def get_file_content(req: FilePathRequest):
 @tools_api.post("/tools/project/save-file-content", response_model=SuccessResponse)
 def save_file_content(req: FileWriteRequest):
     """Safely writes content to a file within the project."""
-    project_root = Path(__file__).parent.parent.resolve()
     file_path = resolve_safe_path(project_root, req.path)
 
     try:
@@ -173,20 +177,18 @@ def save_file_content(req: FileWriteRequest):
         return SuccessResponse(success=True, message=f"File saved successfully to {req.path}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
-        
+
 # --- OCR endpoint ---
 @tools_api.post("/tools/project/run-ocr", response_model=OcrResponse)
 def run_ocr(req: OcrRequest):
     """Runs Tesseract OCR on an image file within the project."""
     log.info("OCR request received", path=req.path)
-    project_root = Path(__file__).parent.parent.resolve()
     file_path = resolve_safe_path(project_root, req.path)
 
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File not found for OCR: {req.path}")
     
     try:
-        # Read image bytes and process with Pillow and pytesseract
         image_bytes = file_path.read_bytes()
         image = Image.open(io.BytesIO(image_bytes))
         extracted_text = pytesseract.image_to_string(image)

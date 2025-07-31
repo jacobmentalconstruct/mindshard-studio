@@ -35,6 +35,8 @@ const NavBar: React.FC = () => {
   }, [localApiKey, setApiKey]);
   
   useEffect(() => {
+    console.log("NavBar trying to fetch data with apiKey:", apiKey);
+    
     if (!apiKey) return;
     
     const fetchData = () => {
