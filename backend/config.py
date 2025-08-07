@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
 
     # --- Core Settings ---
-    api_key: str
+    api_key: str | None = None
     cors_origins: List[str] = ["*"]
     log_level: str = "INFO"
     max_concurrent_requests: int = 100

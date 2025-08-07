@@ -6,6 +6,36 @@ import { BrainCircuitIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, XCircleIcon, CpuC
 import { SystemMetrics, SystemStatus } from '../types';
 import { getSystemMetrics, getSystemStatus } from '../services/mindshardService';
 
+const ResourceDisplay: React.FC<{ metrics: SystemMetrics | null }> = ({ metrics }) => {
+    if (!metrics) return null;
+
+    const renderMetric = (label: string, value: number | undefined) => {
+        if (value === undefined) return null;
+        const color = value > 85 ? 'text-red-400' : value > 60 ? 'text-yellow-400' : 'text-green-400';
+        return (
+            <div className="flex items-center space-x-1">
+                <span className="text-gray-400 font-medium">{label}:</span>
+                <span className={`font-mono font-bold ${color}`}>{value.toFixed(0)}%</span>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex items-center space-x-4 bg-gray-900/50 px-4 py-1.5 rounded-lg border border-gray-700 text-xs">
+            <CpuChipIcon className="h-5 w-5 text-gray-400" />
+            {renderMetric("CPU", metrics.cpu_usage)}
+            <div className="w-px h-4 bg-gray-600" />
+            {renderMetric("RAM", metrics.memory_usage)}
+            {metrics.gpu_usage !== undefined && (
+                <>
+                    <div className="w-px h-4 bg-gray-600" />
+                    {renderMetric("GPU", metrics.gpu_usage)}
+                </>
+            )}
+        </div>
+    );
+};
+
 const ModelStatusDisplay: React.FC<{ status: SystemStatus | null, modelName: string | null }> = ({ status, modelName }) => {
     if (!status) return null;
     
@@ -28,6 +58,7 @@ const NavBar: React.FC = () => {
   const { apiKey, setApiKey } = useContext(ApiKeyContext);
   const [localApiKey, setLocalApiKey] = useLocalStorage('mindshard-api-key', '');
   const [selectedModel] = useLocalStorage('mindshard-selected-model', '');
+  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
 
   useEffect(() => {
@@ -35,11 +66,10 @@ const NavBar: React.FC = () => {
   }, [localApiKey, setApiKey]);
   
   useEffect(() => {
-    console.log("NavBar trying to fetch data with apiKey:", apiKey);
-    
     if (!apiKey) return;
     
     const fetchData = () => {
+        getSystemMetrics(apiKey).then(setMetrics).catch(console.error);
         getSystemStatus(apiKey).then(setSystemStatus).catch(console.error);
     };
 
@@ -61,6 +91,7 @@ const NavBar: React.FC = () => {
 
       <div className="flex items-center space-x-4">
         <ModelStatusDisplay status={systemStatus} modelName={selectedModel} />
+        <ResourceDisplay metrics={metrics} />
         <div className="w-px h-6 bg-gray-600" />
         <div className="flex items-center space-x-2">
             <button className="flex items-center space-x-2 bg-red-700/50 hover:bg-red-600/50 text-gray-300 px-3 py-1.5 rounded-md text-sm transition-colors">

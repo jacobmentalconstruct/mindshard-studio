@@ -3,7 +3,7 @@
 import { 
     ContextSelection, FileNode, KnowledgeBase, PromptTemplate, Role, Scratchpad, 
     SystemStatus, SystemMetrics, Workflow, WorkflowStep, InspectionData, MemoryEntry, PerformanceKPIs,
-    BackendLogEntry, OcrOptions, Commit, CondaEnv, ServerStatusResponse
+    BackendLogEntry, OcrOptions, Commit, CondaEnv, ServerStatusResponse, TaskList, Task
 } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -125,6 +125,143 @@ export const infer = async (apiKey: string, data: { prompt: string, use_rag: boo
     }
     return response.json();
 };
+
+// --- Task Management (Mock) ---
+// Note: This is a mock implementation. A real backend with a database would be required.
+
+let mockTaskLists: TaskList[] = [
+    {
+        id: 'list-1',
+        name: 'Main Project Plan',
+        tasks: [
+            {
+                id: 'task-1',
+                text: 'Setup initial project structure',
+                type: 'file_edit',
+                status: 'Complete',
+                done: true,
+            },
+            {
+                id: 'task-2',
+                text: 'Develop UI for main dashboard',
+                type: 'infer',
+                status: 'Running',
+                sub_tasks: [
+                    { id: 'task-2-1', text: 'Create NavBar component', type: 'file_edit', status: 'Complete', done: true },
+                    { id: 'task-2-2', text: 'Design chat interface', type: 'other', status: 'Awaiting-Approval' },
+                    { id: 'task-2-3', text: 'Implement settings panel', type: 'file_edit', status: 'Pending' },
+                ],
+            },
+            {
+                id: 'task-3',
+                text: 'Write backend API for tasks',
+                type: 'search',
+                status: 'Pending',
+            },
+             {
+                id: 'task-4',
+                text: 'Review the deployment script for errors',
+                type: 'file_edit',
+                status: 'Error',
+                result: 'Syntax error on line 42.'
+            },
+        ]
+    },
+    {
+        id: 'list-2',
+        name: 'Future Ideas',
+        tasks: []
+    }
+];
+
+const findTask = (taskId: string, lists: TaskList[]): Task | null => {
+    for (const list of lists) {
+        const search = (tasks: Task[]): Task | null => {
+            for (const task of tasks) {
+                if (task.id === taskId) return task;
+                if (task.sub_tasks) {
+                    const found = search(task.sub_tasks);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+        const found = search(list.tasks);
+        if(found) return found;
+    }
+    return null;
+};
+
+export const getAllTaskLists = async (apiKey: string): Promise<TaskList[]> => {
+    console.log('STUB: Getting all task lists with key:', apiKey);
+    return Promise.resolve(JSON.parse(JSON.stringify(mockTaskLists)));
+};
+
+export const createTaskList = async (apiKey: string, name: string): Promise<TaskList> => {
+    console.log('STUB: Creating task list:', name, 'with key:', apiKey);
+    const newList: TaskList = {
+        id: `list-${Date.now()}`,
+        name,
+        tasks: []
+    };
+    mockTaskLists.push(newList);
+    return Promise.resolve(JSON.parse(JSON.stringify(newList)));
+};
+
+export const renameTaskList = async (apiKey: string, listId: string, newName: string): Promise<TaskList> => {
+    console.log('STUB: Renaming task list:', listId, 'with key:', apiKey);
+    const list = mockTaskLists.find(l => l.id === listId);
+    if (list) {
+        list.name = newName;
+        return Promise.resolve(JSON.parse(JSON.stringify(list)));
+    }
+    return Promise.reject(new Error("List not found"));
+};
+
+export const deleteTaskList = async (apiKey: string, listId: string): Promise<{ success: boolean }> => {
+    console.log('STUB: Deleting task list:', listId, 'with key:', apiKey);
+    mockTaskLists = mockTaskLists.filter(l => l.id !== listId);
+    return Promise.resolve({ success: true });
+};
+
+export const addTask = async (apiKey: string, listId: string, text: string): Promise<Task> => {
+    console.log('STUB: Adding task to list:', listId, 'with key:', apiKey);
+    const list = mockTaskLists.find(l => l.id === listId);
+    if (list) {
+        const newTask: Task = {
+            id: `task-${Date.now()}`,
+            text,
+            type: 'other',
+            status: 'Pending',
+        };
+        list.tasks.push(newTask);
+        return Promise.resolve(JSON.parse(JSON.stringify(newTask)));
+    }
+    return Promise.reject(new Error("List not found"));
+};
+
+export const updateTask = async (apiKey: string, taskId: string, updates: Partial<Task>): Promise<Task> => {
+    console.log('STUB: Updating task:', taskId, 'with key:', apiKey);
+    const task = findTask(taskId, mockTaskLists);
+    if (task) {
+        Object.assign(task, updates);
+        return Promise.resolve(JSON.parse(JSON.stringify(task)));
+    }
+    return Promise.reject(new Error("Task not found"));
+};
+
+export const approveTask = async (apiKey: string, taskId: string): Promise<Task> => {
+    return updateTask(apiKey, taskId, { status: 'Pending' });
+};
+
+export const rejectTask = async (apiKey: string, taskId: string): Promise<Task> => {
+    return updateTask(apiKey, taskId, { status: 'Error', result: 'Task rejected by user.' });
+};
+
+export const cancelTask = async (apiKey: string, taskId: string): Promise<Task> => {
+    return updateTask(apiKey, taskId, { status: 'Pending', result: 'Task cancelled by user.' });
+};
+
 
 // --- Model & Project Management ---
 
@@ -1049,10 +1186,15 @@ export const getJobStatus = async (apiKey: string, jobId: string): Promise<{ sta
  * NOTE: This is currently a mock implementation. A real backend endpoint
  * for listing prompt templates is needed.
  * @param apiKey The API key.
- * @returns A promise resolving to an empty array (mock).
+ * @returns A promise resolving to an array of prompt templates.
  */
 export const listPromptTemplates = async (apiKey: string): Promise<PromptTemplate[]> => {
-    return Promise.resolve([]);
+    const mockTemplates: PromptTemplate[] = [
+        { id: 'p_default', title: 'Default Agent', content: 'You are a helpful AI assistant.', tags: ['system', 'default'] },
+        { id: 'p_coder', title: 'Code Generation', content: 'You are an expert programmer. Only respond with code.', tags: ['coding', 'expert'] },
+    ];
+    console.log('STUB: Listing prompt templates with key:', apiKey);
+    return Promise.resolve(mockTemplates);
 };
 
 /**
@@ -1073,12 +1215,12 @@ export const deletePromptTemplate = async (apiKey: string, id: string): Promise<
  * NOTE: This is currently a mock implementation. A real backend endpoint
  * for updating prompt templates is needed.
  * @param apiKey The API key.
- * @param id The ID of the prompt template.
- * @returns A promise resolving to success status.
+ * @param template The template object to update.
+ * @returns A promise resolving to the updated prompt template.
  */
-export const updatePromptTemplate = async (apiKey: string, id: string): Promise<{ success: boolean }> => {
-    console.log('STUB: Updating prompt template:', id, 'with key:', apiKey);
-    return new Promise(resolve => setTimeout(() => resolve({ success: true }), 500));
+export const updatePromptTemplate = async (apiKey: string, template: PromptTemplate): Promise<PromptTemplate> => {
+    console.log('STUB: Updating prompt template:', template.id, 'with key:', apiKey);
+    return new Promise(resolve => setTimeout(() => resolve(template), 500));
 };
 
 /**
@@ -1086,10 +1228,14 @@ export const updatePromptTemplate = async (apiKey: string, id: string): Promise<
  * NOTE: This is currently a mock implementation. A real backend endpoint
  * for creating prompt templates is needed.
  * @param apiKey The API key.
- * @param id The ID of the prompt template.
- * @returns A promise resolving to success status.
+ * @param templateData The data for the new prompt template.
+ * @returns A promise resolving to the created prompt template.
  */
-export const createPromptTemplate = async (apiKey: string, id: string): Promise<{ success: boolean }> => {
-    console.log('STUB: Creating prompt template:', id, 'with key:', apiKey);
-    return new Promise(resolve => setTimeout(() => resolve({ success: true }), 500));
+export const createPromptTemplate = async (apiKey: string, templateData: Omit<PromptTemplate, 'id'>): Promise<PromptTemplate> => {
+    console.log('STUB: Creating prompt template:', templateData.title, 'with key:', apiKey);
+    const newTemplate: PromptTemplate = {
+        id: `p_${Date.now()}`,
+        ...templateData,
+    };
+    return new Promise(resolve => setTimeout(() => resolve(newTemplate), 500));
 };

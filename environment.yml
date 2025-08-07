@@ -8,12 +8,13 @@ dependencies:
   - python=3.10
   - pip
 
-  # --- Core ML Stack (Managed by Conda for stability) ---
-  - pytorch-cuda=12.1
-  - pytorch=2.3.1
-  - torchvision=0.18.1  # Add torchvision explicitly to resolve conflicts
-  - torchaudio=2.3.1
-  
+  # --- Core ML Stack (Tuned for Turing/CUDA 11.8 Stability) ---
+  - pytorch-cuda=11.8  # Using CUDA 11.8 for maximum compatibility with RTX 2070 Super
+  - pytorch=2.2.2      # A recent, stable version of PyTorch that pairs well with CUDA 11.8
+  - torchvision=0.17.2 # Version locked to PyTorch 2.2.2
+  - torchaudio=2.2.2   # Version locked to PyTorch 2.2.2
+  - sentence-transformers # Let Conda resolve this against the stable stack
+
   # --- All other dependencies will be installed via pip from pyproject.toml ---
   - pip:
     - -e .[dev]

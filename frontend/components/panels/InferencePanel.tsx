@@ -1,8 +1,9 @@
 
 
+
 import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { Editor } from "@monaco-editor/react";
-import { SystemStatus, KnowledgeBase, PromptTemplate, Role, StreamEntry, Scratchpad, SystemMetrics } from '../../types';
+import { SystemStatus, KnowledgeBase, PromptTemplate, Role, StreamEntry, Scratchpad, SystemMetrics, ContextSelection } from '../../types';
 import { listModels, loadModel, unloadModel, getSystemStatus, getKnowledgeBases, listPromptTemplates, listRoles, selectFolder, streamCognitiveLogs, getSystemMetrics, saveFileContent } from '../../services/mindshardService';
 import { ApiKeyContext, InspectionContext, RoleContext, EditorContext } from '../../App';
 import useLocalStorage from '../../hooks/useLocalStorage';
@@ -310,7 +311,6 @@ const InferencePanel: React.FC = () => {
 
   // Settings State
   const [localApiKey, setLocalApiKey] = useLocalStorage('mindshard-api-key', '');
-  const [modelSource, setModelSource] = useLocalStorage<'online' | 'local'>('mindshard-model-source', 'online');
   const [modelFolder, setModelFolder] = useLocalStorage('mindshard-model-folder', '/path/to/models');
   const [selectedModel, setSelectedModel] = useLocalStorage('mindshard-selected-model', '');
   const [temperature, setTemperature] = useLocalStorage('mindshard-temp', 0.7);
@@ -345,19 +345,6 @@ const InferencePanel: React.FC = () => {
 
   const roleIsActive = !!activeRole;
 
-  const onlineModels = useMemo(() => availableModels.filter(m => !m.endsWith('.gguf') && !m.endsWith('.bin')), [availableModels]);
-  const localModels = useMemo(() => availableModels.filter(m => m.endsWith('.gguf') || m.endsWith('.bin')), [availableModels]);
-
-  useEffect(() => {
-    const currentModels = modelSource === 'online' ? onlineModels : localModels;
-    if (currentModels.length > 0) {
-        const isSelectedModelInList = currentModels.includes(selectedModel);
-        if (!isSelectedModelInList) {
-            setSelectedModel(currentModels[0]);
-        }
-    }
-  }, [modelSource, onlineModels, localModels, selectedModel, setSelectedModel]);
-
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -371,36 +358,32 @@ const InferencePanel: React.FC = () => {
   useEffect(() => {
     if (!apiKey) return;
 
-    getSystemMetrics(apiKey).then(setMetrics).catch(console.error);
     const metricsInterval = setInterval(() => getSystemMetrics(apiKey).then(setMetrics), 2000);
+    getSystemMetrics(apiKey).then(setMetrics).catch(console.error);
 
-    const folderToUse = modelSource === 'local' ? modelFolder : undefined;
-    listModels(apiKey, folderToUse).then(models => {
+    listModels(apiKey, modelFolder).then(models => {
         setAvailableModels(models);
-        if (models.length > 0 && !selectedModel) setSelectedModel(models[0]);
+        if (models.length > 0 && !models.includes(selectedModel)) {
+             setSelectedModel(models[0]);
+        }
     });
     
-    if (modelSource === 'online') {
-        getKnowledgeBases(apiKey).then(kbs => {
-            setAllKnowledgeBases(kbs);
-            if (kbs.length > 0 && !ragKbId) setRagKbId(kbs[0].id);
-        });
-        listPromptTemplates(apiKey).then(setPromptTemplates);
-        listRoles(apiKey).then(setRoles);
+    getKnowledgeBases(apiKey).then(kbs => {
+        setAllKnowledgeBases(kbs);
+        if (kbs.length > 0 && !ragKbId) setRagKbId(kbs[0].id);
+    });
+    listPromptTemplates(apiKey).then(setPromptTemplates);
+    listRoles(apiKey).then(setRoles);
 
-        const statusInterval = setInterval(() => getSystemStatus(apiKey).then(setStatus), 5000);
-        getSystemStatus(apiKey).then(setStatus); // Initial fetch
-        
-        return () => {
-          clearInterval(statusInterval);
-          clearInterval(metricsInterval);
-        }
-    }
+    const statusInterval = setInterval(() => getSystemStatus(apiKey).then(setStatus), 5000);
+    getSystemStatus(apiKey).then(setStatus);
     
     return () => {
+      clearInterval(statusInterval);
       clearInterval(metricsInterval);
     }
-  }, [apiKey, modelSource, modelFolder, selectedModel, ragKbId, setRoles]);
+  }, [apiKey, modelFolder, ragKbId, setRoles]);
+
 
   useEffect(() => {
     // Set default active role if none is set
@@ -413,7 +396,7 @@ const InferencePanel: React.FC = () => {
   }, [roles, activeRole, setActiveRole]);
   
   const handleModelAction = async (action: 'load' | 'unload') => {
-    if ((!apiKey && modelSource === 'online') || (action === 'load' && !selectedModel)) return;
+    if (!apiKey || (action === 'load' && !selectedModel)) return;
     setIsBusy(true);
     const actionFunc = action === 'load' ? loadModel(apiKey, selectedModel) : unloadModel(apiKey);
     actionFunc.then(newStatus => {
@@ -441,10 +424,28 @@ const InferencePanel: React.FC = () => {
     setStreamEntries(prev => [...prev, userMessage]);
     setPrompt('');
     setIsBusy(true);
+
+    const inferenceParams = {
+        model: selectedModel,
+        temperature: temperature,
+        top_k: topK,
+        max_tokens: maxTokens,
+    };
+    const contextSelection: ContextSelection = {
+        use_rag: useRag,
+    };
+    const onError = (error: Error) => {
+        console.error("Streaming error:", error);
+        const errorMessage: StreamEntry = { id: `err-${Date.now()}`, type: 'error', text: `Streaming Error: ${error.message}` };
+        setStreamEntries(prev => [...prev, errorMessage]);
+        setIsBusy(false);
+    };
     
     streamCognitiveLogs(
         apiKey,
         userMessage.text,
+        inferenceParams,
+        contextSelection,
         (scratchpad: Scratchpad) => {
             const newEntries: StreamEntry[] = [];
             const now = Date.now();
@@ -495,7 +496,8 @@ const InferencePanel: React.FC = () => {
         },
         () => {
             setIsBusy(false);
-        }
+        },
+        onError
     );
   };
 
@@ -514,57 +516,38 @@ const InferencePanel: React.FC = () => {
         <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
             <h3 className="font-semibold text-cyan-400 mb-4">Model & Authentication</h3>
             
-             <div className="flex space-x-1 rounded-lg bg-gray-700 p-1 mb-4">
-                <button 
-                    onClick={() => setModelSource('online')} 
-                    className={`w-full rounded-md py-1.5 text-sm font-medium transition ${modelSource === 'online' ? 'bg-cyan-500 text-white shadow' : 'text-gray-300 hover:bg-gray-600/50'}`}
-                >
-                    Online
-                </button>
-                <button 
-                    onClick={() => setModelSource('local')} 
-                    className={`w-full rounded-md py-1.5 text-sm font-medium transition ${modelSource === 'local' ? 'bg-cyan-500 text-white shadow' : 'text-gray-300 hover:bg-gray-600/50'}`}
-                >
-                    Local
-                </button>
-            </div>
-
             <div className="space-y-4">
-                 {modelSource === 'online' && (
-                    <div className="flex items-center w-full">
-                        <label htmlFor="api-key" className="text-sm font-medium text-gray-400 mr-2 whitespace-nowrap">API Key:</label>
-                        <input id="api-key" type="password" value={localApiKey} onChange={(e) => setLocalApiKey(e.target.value)} placeholder="Enter your backend API key" className="w-full bg-gray-700 text-gray-300 px-3 py-1.5 border border-gray-600 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"/>
-                    </div>
-                 )}
+                 <div className="flex items-center w-full">
+                    <label htmlFor="api-key" className="text-sm font-medium text-gray-400 mr-2 whitespace-nowrap">API Key:</label>
+                    <input id="api-key" type="password" value={localApiKey} onChange={(e) => setLocalApiKey(e.target.value)} placeholder="Enter your backend API key" className="w-full bg-gray-700 text-gray-300 px-3 py-1.5 border border-gray-600 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"/>
+                </div>
                 <div>
                     <div className="flex items-center space-x-4">
-                        {modelSource === 'local' && (
-                            <button
-                                onClick={handleSelectFolder}
-                                className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md transition flex-shrink-0"
-                                title="Select Models Folder"
-                            >
-                                <FolderIcon className="h-5 w-5 text-gray-300" />
-                            </button>
-                        )}
+                        <div className="flex-grow min-w-0">
+						<input 
+							type="text" 
+							value={modelFolder} 
+							onChange={(e) => setModelFolder(e.target.value)} 
+							placeholder="Enter full path to models folder"
+							className="w-full bg-gray-700 text-gray-300 px-3 py-1.5 border border-gray-600 rounded-md text-sm"
+						/>
+					</div>
                         <div className="flex-grow min-w-0">
                             <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} className="bg-gray-700 p-2 rounded text-sm w-full">
-                                {(modelSource === 'online' ? onlineModels : localModels).length > 0 ?
-                                    (modelSource === 'online' ? onlineModels : localModels).map(m => <option key={m} value={m}>{m}</option>)
-                                    : <option disabled>{`No ${modelSource} models found`}</option>
+                                {availableModels.length > 0 ?
+                                    availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                                    : <option disabled>No local models found</option>
                                 }
                             </select>
                         </div>
                         <button onClick={() => {
-                            const folderToUse = modelSource === 'local' ? modelFolder : undefined;
-                            listModels(apiKey, folderToUse).then(setAvailableModels);
-                        }} className="text-sm bg-gray-600 hover:bg-gray-500 px-3 py-2 rounded transition whitespace-nowrap">Refresh Models</button>
+						// This now uses the path from the input field
+						listModels(apiKey, modelFolder).then(setAvailableModels);
+					}} className="text-sm bg-gray-600 hover:bg-gray-500 px-3 py-2 rounded transition whitespace-nowrap">Refresh Models</button>
                     </div>
-                     {modelSource === 'local' && (
-                        <p className="text-xs text-gray-400 mt-2 truncate pl-1" title={modelFolder}>
-                           <span className="font-semibold">Current folder:</span> {modelFolder}
-                        </p>
-                    )}
+                    <p className="text-xs text-gray-400 mt-2 truncate pl-1" title={modelFolder}>
+                       <span className="font-semibold">Current folder:</span> {modelFolder}
+                    </p>
                 </div>
 
                 <div className="flex items-center space-x-4 pt-2">

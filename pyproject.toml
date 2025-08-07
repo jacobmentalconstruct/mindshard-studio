@@ -5,7 +5,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mindshard-api"
+name = "mindshard-studio"
 version = "0.1.0"
 authors = [
   { name="Jacob Lambert", email="jacobmentalconstruct@gmail.com" },
@@ -33,9 +33,6 @@ dependencies = [
     "llama-cpp-python==0.2.79",          # Keep pinned, it's sensitive
     "sentence-transformers==3.0.1",      # Pin to the LATEST STABLE version
     "transformers==4.42.3",              # Pin to a recent, compatible stable version
-    "torchaudio==2.3.1",                 # Audio processing for torch
-    "torchvision==0.17.2",               # Image processing for torch
-    # "torch" is removed because Conda is managing it.
 
     # --- Vector Stores & RAG ---
     "chromadb",
@@ -73,7 +70,7 @@ dev = [
 [project.scripts]
 # This creates a command-line script to run the server
 # After installing, you can just type `mindshard-api` in your terminal
-mindshard-api = "backend.main:run_server"
+mindshard-studio = "backend.main:run_server"
 mindshard-kill = "scripts.kill_port:main"
 
 [tool.setuptools.packages.find]

@@ -1,5 +1,6 @@
 
 
+
 export interface Scratchpad {
   thought: string;
   action: 'tool_call' | 'final_answer';
@@ -220,4 +221,8 @@ export interface ServerStatusResponse {
 export interface ServerLogEntry {
   timestamp: string;
   message: string;
+}
+
+export interface ContextSelection {
+    use_rag: boolean;
 }
