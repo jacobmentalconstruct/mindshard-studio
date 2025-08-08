@@ -1,22 +1,24 @@
 
-
-
 import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { Editor } from "@monaco-editor/react";
 import { SystemStatus, KnowledgeBase, PromptTemplate, Role, StreamEntry, Scratchpad, SystemMetrics, ContextSelection } from '../../types';
-import { listModels, loadModel, unloadModel, getSystemStatus, getKnowledgeBases, listPromptTemplates, listRoles, selectFolder, streamCognitiveLogs, getSystemMetrics, saveFileContent } from '../../services/mindshardService';
-import { ApiKeyContext, InspectionContext, RoleContext, EditorContext } from '../../App';
-import useLocalStorage from '../../hooks/useLocalStorage';
-import { PaperAirplaneIcon, ClipboardDocumentCheckIcon, FolderIcon, BrainCircuitIcon, WrenchScrewdriverIcon, Cog6ToothIcon, BookOpenIcon, ChartBarIcon, ClipboardIcon, RectangleStackIcon, UsersIcon, PencilIcon } from '../Icons';
-import FrameBox from '../FrameBox';
+import { streamCognitiveLogs, saveFileContent } from '../../services/mindshardService';
+import { useAppStore } from '../../stores/appStore';
+import { InspectionContext, EditorContext } from '../../App';
+import useTauriStore from '../../hooks/useTauriStore';
+import { useNotify } from '../../hooks/useNotify';
+import { useRolesQuery, usePromptTemplatesQuery, useKnowledgeBasesQuery, useSystemStatusQuery, useSystemMetricsQuery } from '../../hooks/queries';
+import { PaperAirplaneIcon, ClipboardDocumentCheckIcon, BrainCircuitIcon, WrenchScrewdriverIcon, Cog6ToothIcon, BookOpenIcon, ChartBarIcon, ClipboardIcon, RectangleStackIcon, UsersIcon, PencilIcon, XCircleIcon } from '../Icons';
 import KnowledgePanel from './KnowledgePanel';
 import SystemMonitorPanel from './SystemMonitorPanel';
 import PromptManagerPanel from './PromptManagerPanel';
 import WorkflowView from './WorkflowView';
 import RolePanel from './RolePanel';
+import { SettingsView } from './SettingsPanel'; 
+import LoadingSpinner from '../common/LoadingSpinner';
 
 // --- Helper component for the Thought Stream tab ---
-const ThoughtStreamPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ streamEntries }) => {
+const ThoughtStreamPanel: React.FC<{ streamEntries: StreamEntry[], isBusy: boolean }> = ({ streamEntries, isBusy }) => {
     const thoughts = streamEntries.filter((entry): entry is Extract<StreamEntry, { type: 'thought' }> => entry.type === 'thought');
     
     return (
@@ -32,7 +34,8 @@ const ThoughtStreamPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ stream
                             </div>
                         </div>
                     ))}
-                    {thoughts.length === 0 && (
+                    {isBusy && thoughts.length === 0 && <LoadingSpinner text="Thinking..." />}
+                    {!isBusy && thoughts.length === 0 && (
                         <div className="text-center text-gray-500 text-sm pt-4">Thoughts from the AI will appear here as it works.</div>
                     )}
                 </div>
@@ -42,7 +45,7 @@ const ThoughtStreamPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ stream
 };
 
 // --- Helper component for the Scratchpads tab ---
-const ScratchpadsPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ streamEntries }) => {
+const ScratchpadsPanel: React.FC<{ streamEntries: StreamEntry[], isBusy: boolean }> = ({ streamEntries, isBusy }) => {
     const scratchpads = streamEntries.filter(
         (entry): entry is Extract<StreamEntry, { type: 'full_scratchpad' }> => entry.type === 'full_scratchpad'
     );
@@ -77,7 +80,8 @@ const ScratchpadsPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ streamEn
                             </div>
                         </div>
                     ))}
-                    {scratchpads.length === 0 && (
+                    {isBusy && scratchpads.length === 0 && <LoadingSpinner text="Working..." />}
+                    {!isBusy && scratchpads.length === 0 && (
                         <div className="text-center text-gray-500 text-sm pt-4">Scratchpads will appear here as the AI works.</div>
                     )}
                 </div>
@@ -90,13 +94,14 @@ const ScratchpadsPanel: React.FC<{ streamEntries: StreamEntry[] }> = ({ streamEn
 // --- The new Auxiliary Panel with multiple tabs ---
 interface AuxiliaryPanelProps {
     streamEntries: StreamEntry[];
+    isBusy: boolean;
 }
 interface PanelTab {
     type: string;
     icon: React.ReactNode;
     name: string;
 }
-const AuxiliaryPanel: React.FC<AuxiliaryPanelProps> = ({ streamEntries }) => {
+const AuxiliaryPanel: React.FC<AuxiliaryPanelProps> = ({ streamEntries, isBusy }) => {
     const navRef = useRef<HTMLDivElement>(null);
     const [showLeftShadow, setShowLeftShadow] = useState(false);
     const [showRightShadow, setShowRightShadow] = useState(false);
@@ -153,16 +158,16 @@ const AuxiliaryPanel: React.FC<AuxiliaryPanelProps> = ({ streamEntries }) => {
     
     const renderActivePanel = useCallback(() => {
         switch (activePanel) {
-            case 'ThoughtStream': return <ThoughtStreamPanel streamEntries={streamEntries} />;
-            case 'Scratchpads': return <ScratchpadsPanel streamEntries={streamEntries} />;
+            case 'ThoughtStream': return <ThoughtStreamPanel streamEntries={streamEntries} isBusy={isBusy}/>;
+            case 'Scratchpads': return <ScratchpadsPanel streamEntries={streamEntries} isBusy={isBusy}/>;
             case 'Workflow': return <WorkflowView />;
             case 'Roles': return <RolePanel />;
             case 'Prompts': return <PromptManagerPanel />;
             case 'Knowledge': return <KnowledgePanel />;
             case 'Monitor': return <SystemMonitorPanel />;
-            default: return <ThoughtStreamPanel streamEntries={streamEntries} />;
+            default: return <ThoughtStreamPanel streamEntries={streamEntries} isBusy={isBusy}/>;
         }
-    }, [activePanel, streamEntries]);
+    }, [activePanel, streamEntries, isBusy]);
 
     return (
         <div className="flex flex-col h-full bg-gray-800 text-gray-200 font-sans">
@@ -203,10 +208,12 @@ const AuxiliaryPanel: React.FC<AuxiliaryPanelProps> = ({ streamEntries }) => {
 
 const CodeBlock: React.FC<{ language: string; content: string }> = ({ language, content }) => {
     const [copied, setCopied] = useState(false);
+    const notify = useNotify.getState();
 
     const handleCopy = () => {
         navigator.clipboard.writeText(content);
         setCopied(true);
+        notify.success('Code copied to clipboard!');
         setTimeout(() => setCopied(false), 2000);
     };
 
@@ -251,36 +258,6 @@ const parseMessageText = (text: string): { type: 'text' | 'code'; content: strin
     });
 };
 
-const SliderControl: React.FC<{
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-  disabled?: boolean;
-  className?: string;
-}> = ({ label, value, min, max, step, onChange, disabled=false, className='' }) => {
-  return (
-    <div className={`grid grid-cols-6 items-center gap-4 ${className}`}>
-      <label className={`text-sm col-span-2 whitespace-nowrap ${disabled ? 'text-gray-500' : 'text-gray-400'}`}>{label}:</label>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        disabled={disabled}
-        className="col-span-3 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:bg-gray-700"
-      />
-      <span className={`text-sm font-mono text-center py-1 rounded-md col-span-1 ${disabled ? 'bg-gray-800 text-gray-500' : 'bg-gray-900'}`}>
-        {value}
-      </span>
-    </div>
-  );
-};
-
 const ResourceMetric: React.FC<{ label: string; value: number | undefined }> = ({ label, value }) => {
     if (value === undefined) return null;
 
@@ -299,347 +276,15 @@ const ResourceMetric: React.FC<{ label: string; value: number | undefined }> = (
     );
 };
 
-
-const InferencePanel: React.FC = () => {
-  type Tab = 'Chat' | 'Settings';
-  const [activeTab, setActiveTab] = useState<Tab>('Chat');
-  
-  // Chat State
-  const [streamEntries, setStreamEntries] = useLocalStorage<StreamEntry[]>('mindshard-stream-history', []);
-  const [prompt, setPrompt] = useState('');
-  const [isBusy, setIsBusy] = useState(false);
-
-  // Settings State
-  const [localApiKey, setLocalApiKey] = useLocalStorage('mindshard-api-key', '');
-  const [modelFolder, setModelFolder] = useLocalStorage('mindshard-model-folder', '/path/to/models');
-  const [selectedModel, setSelectedModel] = useLocalStorage('mindshard-selected-model', '');
-  const [temperature, setTemperature] = useLocalStorage('mindshard-temp', 0.7);
-  const [topK, setTopK] = useLocalStorage('mindshard-topk', 40);
-  const [maxTokens, setMaxTokens] = useLocalStorage('mindshard-maxtokens', 1024);
-  const [streamResponses, setStreamResponses] = useLocalStorage('mindshard-stream', false);
-  const [useRag, setUseRag] = useLocalStorage('mindshard-userag', true);
-  const [ragKbId, setRagKbId] = useLocalStorage<string | null>('mindshard-rag-kbid', null);
-  const [chunkSize, setChunkSize] = useLocalStorage('mindshard-chunksize', 512);
-  const [chunkOverlap, setChunkOverlap] = useLocalStorage('mindshard-overlap', 128);
-  const [systemPrompt, setSystemPrompt] = useLocalStorage('mindshard-system-prompt', '');
-  const [useCustomTemplate, setUseCustomTemplate] = useLocalStorage('mindshard-use-template', false);
-  const [customTemplateId, setCustomTemplateId] = useLocalStorage<string | null>('mindshard-template-id', null);
-  const [showDefaultSaved, setShowDefaultSaved] = useState(false);
-
-
-  // Data for Settings Dropdowns
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [allKnowledgeBases, setAllKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
-  
-  // System Status State
-  const [status, setStatus] = useState<SystemStatus>({ model_status: 'unloaded', retriever_status: 'inactive' });
-  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  
-  // Contexts
-  const { apiKey, setApiKey } = useContext(ApiKeyContext);
-  const { setInspectionData } = useContext(InspectionContext);
-  const { roles, setRoles, activeRole, setActiveRole } = useContext(RoleContext);
-  const { setOpenTabs } = useContext(EditorContext);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const roleIsActive = !!activeRole;
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(scrollToBottom, [streamEntries, activeTab]);
-  
-  useEffect(() => {
-    setApiKey(localApiKey);
-  }, [localApiKey, setApiKey]);
-
-  useEffect(() => {
-    if (!apiKey) return;
-
-    const metricsInterval = setInterval(() => getSystemMetrics(apiKey).then(setMetrics), 2000);
-    getSystemMetrics(apiKey).then(setMetrics).catch(console.error);
-
-    listModels(apiKey, modelFolder).then(models => {
-        setAvailableModels(models);
-        if (models.length > 0 && !models.includes(selectedModel)) {
-             setSelectedModel(models[0]);
-        }
-    });
-    
-    getKnowledgeBases(apiKey).then(kbs => {
-        setAllKnowledgeBases(kbs);
-        if (kbs.length > 0 && !ragKbId) setRagKbId(kbs[0].id);
-    });
-    listPromptTemplates(apiKey).then(setPromptTemplates);
-    listRoles(apiKey).then(setRoles);
-
-    const statusInterval = setInterval(() => getSystemStatus(apiKey).then(setStatus), 5000);
-    getSystemStatus(apiKey).then(setStatus);
-    
-    return () => {
-      clearInterval(statusInterval);
-      clearInterval(metricsInterval);
-    }
-  }, [apiKey, modelFolder, ragKbId, setRoles]);
-
-
-  useEffect(() => {
-    // Set default active role if none is set
-    if (roles.length > 0 && !activeRole) {
-      const defaultRole = roles.find(r => r.id === 'role_default_agent');
-      if (defaultRole) {
-        setActiveRole(defaultRole);
-      }
-    }
-  }, [roles, activeRole, setActiveRole]);
-  
-  const handleModelAction = async (action: 'load' | 'unload') => {
-    if (!apiKey || (action === 'load' && !selectedModel)) return;
-    setIsBusy(true);
-    const actionFunc = action === 'load' ? loadModel(apiKey, selectedModel) : unloadModel(apiKey);
-    actionFunc.then(newStatus => {
-        setStatus(newStatus);
-        if(action === 'unload') {
-            setStreamEntries([]);
-            setInspectionData(null);
-        }
-    }).finally(() => setIsBusy(false));
-  };
-
-  const handleSetAsDefault = () => {
-    // Since useLocalStorage saves automatically, all we need to do is provide feedback.
-    setShowDefaultSaved(true);
-    setTimeout(() => {
-      setShowDefaultSaved(false);
-    }, 3000);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim() || isBusy || status.model_status !== 'loaded') return;
-
-    const userMessage: StreamEntry = { id: `msg-${Date.now()}`, type: 'user', text: prompt };
-    setStreamEntries(prev => [...prev, userMessage]);
-    setPrompt('');
-    setIsBusy(true);
-
-    const inferenceParams = {
-        model: selectedModel,
-        temperature: temperature,
-        top_k: topK,
-        max_tokens: maxTokens,
-    };
-    const contextSelection: ContextSelection = {
-        use_rag: useRag,
-    };
-    const onError = (error: Error) => {
-        console.error("Streaming error:", error);
-        const errorMessage: StreamEntry = { id: `err-${Date.now()}`, type: 'error', text: `Streaming Error: ${error.message}` };
-        setStreamEntries(prev => [...prev, errorMessage]);
-        setIsBusy(false);
-    };
-    
-    streamCognitiveLogs(
-        apiKey,
-        userMessage.text,
-        inferenceParams,
-        contextSelection,
-        (scratchpad: Scratchpad) => {
-            const newEntries: StreamEntry[] = [];
-            const now = Date.now();
-            
-            // New entry for the "Scratchpads" tab
-            newEntries.push({
-                id: `msg-${now}-fs`,
-                type: 'full_scratchpad',
-                scratchpad: scratchpad,
-            });
-
-            // Entry for the "Thoughts" tab
-            newEntries.push({
-                id: `msg-${now}-th`,
-                type: 'thought',
-                text: scratchpad.thought,
-            });
-            
-            if (scratchpad.action === 'tool_call') {
-                newEntries.push({
-                    id: `msg-${now}-tc`,
-                    type: 'tool_call',
-                    tool_name: scratchpad.tool_payload!.name,
-                    tool_args: scratchpad.tool_payload!.args,
-                });
-            } else if (scratchpad.action === 'final_answer') {
-                newEntries.push({
-                    id: `msg-${now}-fa`,
-                    type: 'final_answer',
-                    text: scratchpad.tool_payload?.args.text || "I have completed the task.",
-                });
-            }
-
-            setStreamEntries(prev => [...prev, ...newEntries]);
-
-            // Side effect for file editing
-            if (scratchpad.action === 'tool_call' && scratchpad.tool_payload?.name === 'edit_file') {
-                const { path, content } = scratchpad.tool_payload.args;
-                saveFileContent(path, content);
-                setOpenTabs(prevTabs => 
-                    prevTabs.map(tab => 
-                        tab.path === path 
-                        ? { ...tab, content: content, isDirty: true }
-                        : tab
-                    )
-                );
-            }
-        },
-        () => {
-            setIsBusy(false);
-        },
-        onError
-    );
-  };
-
-  const handleSelectFolder = async () => {
-    const result = await selectFolder();
-    if (result && result.path) {
-        setModelFolder(result.path);
-    }
-  };
-
-  const SettingsView = () => (
-    <div className="p-4 space-y-8 overflow-y-auto">
-        <h2 className="text-xl font-bold text-gray-300 border-b border-gray-700 pb-2">Inference › Settings</h2>
-
-        {/* Model Selection & Auth */}
-        <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-            <h3 className="font-semibold text-cyan-400 mb-4">Model & Authentication</h3>
-            
-            <div className="space-y-4">
-                 <div className="flex items-center w-full">
-                    <label htmlFor="api-key" className="text-sm font-medium text-gray-400 mr-2 whitespace-nowrap">API Key:</label>
-                    <input id="api-key" type="password" value={localApiKey} onChange={(e) => setLocalApiKey(e.target.value)} placeholder="Enter your backend API key" className="w-full bg-gray-700 text-gray-300 px-3 py-1.5 border border-gray-600 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"/>
-                </div>
-                <div>
-                    <div className="flex items-center space-x-4">
-                        <div className="flex-grow min-w-0">
-						<input 
-							type="text" 
-							value={modelFolder} 
-							onChange={(e) => setModelFolder(e.target.value)} 
-							placeholder="Enter full path to models folder"
-							className="w-full bg-gray-700 text-gray-300 px-3 py-1.5 border border-gray-600 rounded-md text-sm"
-						/>
-					</div>
-                        <div className="flex-grow min-w-0">
-                            <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} className="bg-gray-700 p-2 rounded text-sm w-full">
-                                {availableModels.length > 0 ?
-                                    availableModels.map(m => <option key={m} value={m}>{m}</option>)
-                                    : <option disabled>No local models found</option>
-                                }
-                            </select>
-                        </div>
-                        <button onClick={() => {
-						// This now uses the path from the input field
-						listModels(apiKey, modelFolder).then(setAvailableModels);
-					}} className="text-sm bg-gray-600 hover:bg-gray-500 px-3 py-2 rounded transition whitespace-nowrap">Refresh Models</button>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2 truncate pl-1" title={modelFolder}>
-                       <span className="font-semibold">Current folder:</span> {modelFolder}
-                    </p>
-                </div>
-
-                <div className="flex items-center space-x-4 pt-2">
-                    {status.model_status !== 'loaded' ? (
-                        <button onClick={() => handleModelAction('load')} disabled={isBusy || !selectedModel} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded disabled:bg-gray-600 text-sm">{status.model_status === 'loading' ? 'Loading...' : 'Load Model'}</button>
-                    ) : (
-                        <button onClick={() => handleModelAction('unload')} disabled={isBusy} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded disabled:bg-gray-600 text-sm">Unload Model</button>
-                    )}
-                    <div className="text-sm text-gray-400">Status: <span className={status.model_status === 'loaded' ? 'text-green-400' : 'text-red-400'}>{status.model_status}</span></div>
-                </div>
-            </div>
-        </div>
-
-        {/* Parameters */}
-        <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-            <h3 className="font-semibold text-cyan-400 mb-4">Parameters</h3>
-            <div className="space-y-4">
-                <SliderControl label="Temperature" value={temperature} min={0} max={2} step={0.1} onChange={setTemperature} />
-                <SliderControl label="Top-K" value={topK} min={1} max={100} step={1} onChange={setTopK} />
-                <SliderControl label="Max Tokens" value={maxTokens} min={256} max={8192} step={256} onChange={setMaxTokens} />
-                <label className="flex items-center text-sm space-x-2 cursor-pointer pt-2"><input type="checkbox" checked={streamResponses} onChange={e => setStreamResponses(e.target.checked)} className="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500" /> <span>Stream Responses</span></label>
-            </div>
-        </div>
-        
-        {/* RAG */}
-        <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-            <h3 className="font-semibold text-cyan-400 mb-4">RAG / Knowledge</h3>
-             {roleIsActive && <div className="text-xs text-yellow-400 bg-yellow-900/50 p-2 rounded-md mb-3">RAG settings are controlled by the active role: <span className="font-bold">{activeRole.name}</span>.</div>}
-            <div className="space-y-4">
-                 <label className="flex items-center text-sm space-x-2 cursor-pointer"><input type="checkbox" checked={roleIsActive ? activeRole.knowledge_bases.length > 0 : useRag} onChange={e => setUseRag(e.target.checked)} disabled={roleIsActive} className="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 disabled:bg-gray-800 disabled:border-gray-700" /> <span className={roleIsActive ? 'text-gray-500' : ''}>Enable RAG lookup</span></label>
-                 <div className="grid grid-cols-1 gap-4">
-                    <div>
-                        <label className={`block text-sm mb-1 ${roleIsActive ? 'text-gray-500' : 'text-gray-400'}`}>Knowledge Base(s):</label>
-                        {roleIsActive ? (
-                            <div className="bg-gray-800 p-2 rounded space-y-1">
-                                {activeRole.knowledge_bases.length > 0 ? activeRole.knowledge_bases.map(kbId => <div key={kbId} className="text-sm text-gray-300">{allKnowledgeBases.find(kb => kb.id === kbId)?.name || kbId}</div>) : <div className="text-sm text-gray-500">No KBs in this role.</div>}
-                            </div>
-                        ) : (
-                            <select value={ragKbId ?? ''} onChange={e => setRagKbId(e.target.value)} className="bg-gray-700 p-2 rounded text-sm w-full">
-                                {allKnowledgeBases.map(kb => <option key={kb.id} value={kb.id}>{kb.name}</option>)}
-                            </select>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-sm text-gray-400 mb-1">Chunk Size:</label>
-                            <input type="number" value={chunkSize} onChange={e => setChunkSize(parseInt(e.target.value))} className="bg-gray-700 p-2 rounded text-sm w-full" />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-gray-400 mb-1">Overlap:</label>
-                            <input type="number" value={chunkOverlap} onChange={e => setChunkOverlap(parseInt(e.target.value))} className="bg-gray-700 p-2 rounded text-sm w-full" />
-                        </div>
-                    </div>
-                 </div>
-            </div>
-        </div>
-
-        {/* Advanced */}
-         <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-            <h3 className="font-semibold text-cyan-400 mb-4">Advanced</h3>
-            {roleIsActive && <div className="text-xs text-yellow-400 bg-yellow-900/50 p-2 rounded-md mb-3">System Prompt is controlled by the active role.</div>}
-            <div className="space-y-4">
-                 <div>
-                    <label className={`block text-sm mb-1 ${roleIsActive ? 'text-gray-500' : 'text-gray-400'}`}>System Prompt:</label>
-                    <textarea value={roleIsActive ? activeRole.system_prompt : systemPrompt} onChange={e => setSystemPrompt(e.target.value)} disabled={roleIsActive} rows={4} className="w-full bg-gray-700 p-2 rounded text-sm disabled:bg-gray-800 disabled:text-gray-500" />
-                 </div>
-                 <label className="flex items-center text-sm space-x-2 cursor-pointer"><input type="checkbox" checked={useCustomTemplate} onChange={e => setUseCustomTemplate(e.target.checked)} className="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500" /> <span>Use custom prompt template</span></label>
-                 {useCustomTemplate && (
-                    <select value={customTemplateId ?? ''} onChange={e => setCustomTemplateId(e.target.value)} className="bg-gray-700 p-2 rounded text-sm w-full">
-                        {promptTemplates.map(pt => <option key={pt.id} value={pt.id}>{pt.title}</option>)}
-                    </select>
-                 )}
-                <button className="text-sm bg-gray-600 hover:bg-gray-500 px-3 py-2 rounded transition">Show raw JSON request/response</button>
-            </div>
-        </div>
-        
-        <div className="mt-6 pt-6 border-t border-gray-700">
-            <div className="flex flex-col items-center">
-                <button onClick={handleSetAsDefault} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-lg transition text-base shadow-md hover:shadow-lg">
-                    Save Current Settings as Default
-                </button>
-                {showDefaultSaved && (
-                    <div className="text-sm text-green-400 mt-3 transition-opacity duration-300">
-                        ✓ All current settings have been saved as your default.
-                    </div>
-                )}
-            </div>
-        </div>
-    </div>
-  );
-  
-  const ConsciousStreamView = () => (
+const ConsciousStreamView: React.FC<{
+  prompt: string;
+  setPrompt: (p: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  isBusy: boolean;
+  status: SystemStatus;
+  streamEntries: StreamEntry[];
+  chatEndRef: React.RefObject<HTMLDivElement>;
+}> = ({ prompt, setPrompt, handleSubmit, isBusy, status, streamEntries, chatEndRef }) => (
     <div className="h-full flex flex-col">
         <div className="flex-1 flex overflow-hidden bg-gray-900">
             {/* Left Column: Main Chat */}
@@ -699,15 +344,172 @@ const InferencePanel: React.FC = () => {
 
             {/* Right Column: New Auxiliary Panel */}
             <div className="w-1/4 h-full">
-                <AuxiliaryPanel streamEntries={streamEntries} />
+                <AuxiliaryPanel streamEntries={streamEntries} isBusy={isBusy} />
             </div>
         </div>
     </div>
   );
 
+const InferencePanel: React.FC = () => {
+  type Tab = 'Chat' | 'Settings';
+  const [activeTab, setActiveTab] = useState<Tab>('Chat');
+  
+  // Chat State
+  const [streamEntries, setStreamEntries] = useTauriStore<StreamEntry[]>('mindshard-stream-history', []);
+  const [prompt, setPrompt] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
+  
+  const notify = useNotify.getState();
+
+  // Settings State from useTauriStore
+  const [localApiKey, setLocalApiKey] = useTauriStore('mindshard-api-key', '');
+  const [modelFolder, setModelFolder] = useTauriStore('mindshard-model-folder', '/models');
+  const [selectedModel, setSelectedModel] = useTauriStore('mindshard-selected-model', '');
+  const [temperature, setTemperature] = useTauriStore('mindshard-temp', 0.7);
+  const [topK, setTopK] = useTauriStore('mindshard-topk', 40);
+  const [maxTokens, setMaxTokens] = useTauriStore('mindshard-maxtokens', 1024);
+  const [streamResponses, setStreamResponses] = useTauriStore('mindshard-stream', false);
+  const [useRag, setUseRag] = useTauriStore('mindshard-userag', true);
+  const [ragKbId, setRagKbId] = useTauriStore<string | null>('mindshard-rag-kbid', null);
+  const [chunkSize, setChunkSize] = useTauriStore('mindshard-chunksize', 512);
+  const [chunkOverlap, setChunkOverlap] = useTauriStore('mindshard-overlap', 128);
+  const [systemPrompt, setSystemPrompt] = useTauriStore('mindshard-system-prompt', '');
+  const [useCustomTemplate, setUseCustomTemplate] = useTauriStore('mindshard-use-template', false);
+  const [customTemplateId, setCustomTemplateId] = useTauriStore<string | null>('mindshard-template-id', null);
+
+  // Zustand state
+  const { apiKey, setApiKey, activeRole, roles, setRoles, setActiveRole } = useAppStore();
+  
+  // React-Query Data
+  const { data: status, error: statusError } = useSystemStatusQuery();
+  const { data: metrics, error: metricsError } = useSystemMetricsQuery();
+  const { data: allKnowledgeBases = [] } = useKnowledgeBasesQuery();
+  const { data: promptTemplates = [] } = usePromptTemplatesQuery();
+  const { data: rolesData, isLoading: rolesLoading } = useRolesQuery();
+
+  // Contexts
+  const { setInspectionData } = useContext(InspectionContext);
+  const { setOpenTabs } = useContext(EditorContext);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (statusError) notify.error(`System Status Error: ${statusError.message}`);
+    if (metricsError) notify.error(`System Metrics Error: ${metricsError.message}`);
+  }, [statusError, metricsError, notify]);
+  
+  useEffect(() => {
+    if (rolesData) {
+        setRoles(rolesData);
+        // Set default active role if none is set
+        if (rolesData.length > 0 && !activeRole) {
+            const defaultRole = rolesData.find(r => r.id === 'role_default_agent') || rolesData[0];
+            if (defaultRole) {
+                setActiveRole(defaultRole);
+            }
+        }
+    }
+  }, [rolesData, setRoles, activeRole, setActiveRole]);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(scrollToBottom, [streamEntries, activeTab]);
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt.trim() || isBusy || status?.model_status !== 'loaded') return;
+
+    const userMessage: StreamEntry = { id: `msg-${Date.now()}`, type: 'user', text: prompt };
+    setStreamEntries(prev => [...prev, userMessage]);
+    setPrompt('');
+    setIsBusy(true);
+
+    const inferenceParams = {
+        model: selectedModel,
+        temperature: temperature,
+        top_k: topK,
+        max_tokens: maxTokens,
+    };
+    const contextSelection: ContextSelection = {
+        use_rag: useRag,
+    };
+    const onError = (error: Error) => {
+        console.error("Streaming error:", error);
+        const errorMessage: StreamEntry = { id: `err-${Date.now()}`, type: 'error', text: `Streaming Error: ${error.message}` };
+        setStreamEntries(prev => [...prev, errorMessage]);
+        setIsBusy(false);
+    };
+    
+    streamCognitiveLogs(
+        apiKey,
+        userMessage.text,
+        inferenceParams,
+        contextSelection,
+        (scratchpad: Scratchpad) => {
+            const newEntries: StreamEntry[] = [];
+            const now = Date.now();
+            
+            newEntries.push({
+                id: `msg-${now}-fs`,
+                type: 'full_scratchpad',
+                scratchpad: scratchpad,
+            });
+
+            newEntries.push({
+                id: `msg-${now}-th`,
+                type: 'thought',
+                text: scratchpad.thought,
+            });
+            
+            if (scratchpad.action === 'tool_call') {
+                newEntries.push({
+                    id: `msg-${now}-tc`,
+                    type: 'tool_call',
+                    tool_name: scratchpad.tool_payload!.name,
+                    tool_args: scratchpad.tool_payload!.args,
+                });
+            } else if (scratchpad.action === 'final_answer') {
+                newEntries.push({
+                    id: `msg-${now}-fa`,
+                    type: 'final_answer',
+                    text: scratchpad.tool_payload?.args.text || "I have completed the task.",
+                });
+            }
+
+            setStreamEntries(prev => [...prev, ...newEntries]);
+
+            if (scratchpad.action === 'tool_call' && scratchpad.tool_payload?.name === 'edit_file') {
+                const { path, content } = scratchpad.tool_payload.args;
+                saveFileContent(path, content).catch(e => console.error("Failed to save file from tool call", e));
+                setOpenTabs(prevTabs => 
+                    prevTabs.map(tab => 
+                        tab.path === path 
+                        ? { ...tab, content: content, isDirty: true }
+                        : tab
+                    )
+                );
+            }
+        },
+        () => {
+            setIsBusy(false);
+        },
+        onError
+    );
+  };
+  
   const tabs: { name: Tab; icon: React.ReactNode; disabled?: boolean }[] = [
     { name: 'Chat', icon: <PaperAirplaneIcon className="h-5 w-5" /> },
   ];
+  
+  const settingsProps = {
+    localApiKey, setLocalApiKey, modelFolder, setModelFolder, selectedModel, 
+    setSelectedModel, temperature, setTemperature, topK, setTopK, maxTokens, 
+    setMaxTokens, streamResponses, setStreamResponses, activeRole, useRag, setUseRag, 
+    allKnowledgeBases, ragKbId, setRagKbId, chunkSize, setChunkSize, chunkOverlap, 
+    setChunkOverlap, systemPrompt, setSystemPrompt, useCustomTemplate, setUseCustomTemplate, 
+    promptTemplates, customTemplateId, setCustomTemplateId,
+  };
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg flex flex-col h-full">
@@ -764,8 +566,8 @@ const InferencePanel: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-                {activeTab === 'Chat' && <ConsciousStreamView />}
-                {activeTab === 'Settings' && <SettingsView />}
+                {activeTab === 'Chat' && <ConsciousStreamView {...{ prompt, setPrompt, handleSubmit, isBusy, status: status || { model_status: 'unloaded', retriever_status: 'inactive' }, streamEntries, chatEndRef }} />}
+                {activeTab === 'Settings' && <SettingsView {...settingsProps} />}
             </div>
         </div>
     </div>

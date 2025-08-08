@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { TaskList, Task } from '../../types';
 import { getAllTaskLists, addTask, updateTask, createTaskList, renameTaskList, deleteTaskList, approveTask, rejectTask, cancelTask } from '../../services/mindshardService';
-import { ApiKeyContext, TaskContext } from '../../App';
+import { TaskContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import FrameBox from '../FrameBox';
 import { PlusIcon, EllipsisVerticalIcon, ChevronRightIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from '../Icons';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 
 const getStatusIcon = (status: Task['status']) => {
     switch (status) {
@@ -32,7 +34,7 @@ interface TaskNodeProps {
 
 const TaskNode: React.FC<TaskNodeProps> = ({ task, onUpdate, level }) => {
     const [isOpen, setIsOpen] = useState(true);
-    const { apiKey } = useContext(ApiKeyContext);
+    const apiKey = useAppStore(state => state.apiKey);
     const { selectedTaskId, setSelectedTaskId } = useContext(TaskContext);
     const isSelected = selectedTaskId === task.id;
 
@@ -88,7 +90,7 @@ const TaskListPanel: React.FC = () => {
   const [newTaskText, setNewTaskText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const { apiKey } = useContext(ApiKeyContext);
+  const apiKey = useAppStore(state => state.apiKey);
   const menuRef = useRef<HTMLDivElement>(null);
 
 

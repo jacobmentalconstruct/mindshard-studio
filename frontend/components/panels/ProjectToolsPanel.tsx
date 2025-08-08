@@ -1,10 +1,12 @@
+
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import FrameBox from '../FrameBox';
-import { ApiKeyContext, ProjectFilesContext } from '../../App';
+import { ProjectFilesContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import * as mindshardService from '../../services/mindshardService';
 import { CondaEnv, ServerStatusResponse, ServerLogEntry } from '../../types';
 import { ChevronDownIcon, ClipboardDocumentCheckIcon, BrainCircuitIcon } from '../Icons';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 
 
 const AccordionSection: React.FC<{ title: string; children: React.ReactNode, defaultOpen?: boolean }> = ({ title, children, defaultOpen = true }) => {
@@ -21,11 +23,11 @@ const AccordionSection: React.FC<{ title: string; children: React.ReactNode, def
 };
 
 const ProjectToolsPanel: React.FC = () => {
-    const { apiKey } = useContext(ApiKeyContext);
+    const apiKey = useAppStore(state => state.apiKey);
     const { selectedPaths, exclusions } = useContext(ProjectFilesContext);
     const [result, setResult] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [isAgentAware, setIsAgentAware] = useLocalStorage('mindshard-aware-project-tools', true);
+    const [isAgentAware, setIsAgentAware] = useTauriStore('mindshard-aware-project-tools', true);
 
     
     // Audit state

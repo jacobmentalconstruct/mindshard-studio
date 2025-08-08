@@ -4,10 +4,11 @@ import React, { useState, useContext, useEffect, useCallback, useRef } from 'rea
 import { Editor, useMonaco } from "@monaco-editor/react";
 import FrameBox from '../FrameBox';
 import { PlusIcon, DocumentTextIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, LinkIcon, ListBulletIcon, CodeBracketIcon, ChatBubbleOvalLeftEllipsisIcon, ChevronDownIcon, BrainCircuitIcon } from '../Icons';
-import { OpenFileContext, ApiKeyContext, TaskContext, EditorContext } from '../../App';
+import { OpenFileContext, TaskContext, EditorContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import { runOcr, injectContextIntoTask } from '../../services/mindshardService';
 import { EditorTab } from '../../types';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 
 const CloseIcon: React.FC<{className?: string; onClick?: (e: React.MouseEvent) => void}> = ({className, onClick}) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className} onClick={onClick}>
@@ -125,7 +126,7 @@ const EditorToolbar: React.FC<{ editorRef: React.MutableRefObject<any>, monacoRe
 
 const TextEditorPanel: React.FC = () => {
     const { setOpenFilePath } = useContext(OpenFileContext);
-    const { apiKey } = useContext(ApiKeyContext);
+    const apiKey = useAppStore(state => state.apiKey);
     const { selectedTaskId } = useContext(TaskContext);
     const {
         openTabs,
@@ -140,7 +141,7 @@ const TextEditorPanel: React.FC = () => {
     
     const [isLoading, setIsLoading] = useState(false);
     const [isOcrRunning, setIsOcrRunning] = useState(false);
-    const [isAgentAware, setIsAgentAware] = useLocalStorage('mindshard-aware-editor', true);
+    const [isAgentAware, setIsAgentAware] = useTauriStore('mindshard-aware-editor', true);
     const [injectionStatus, setInjectionStatus] = useState('');
     
     const editorRef = useRef<any>(null);

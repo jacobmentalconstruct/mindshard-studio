@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PromptTemplate } from '../../types';
 import { listPromptTemplates, createPromptTemplate, updatePromptTemplate, deletePromptTemplate } from '../../services/mindshardService';
-import { ApiKeyContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import { PlusIcon, TrashIcon } from '../Icons';
 import { Editor } from "@monaco-editor/react";
 
@@ -13,7 +14,7 @@ const EMPTY_PROMPT_DETAILS: Omit<PromptTemplate, 'id'> = {
 };
 
 const PromptManagerPanel: React.FC = () => {
-    const { apiKey } = useContext(ApiKeyContext);
+    const apiKey = useAppStore(state => state.apiKey);
     const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
     const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
     const [activeDetails, setActiveDetails] = useState<Partial<PromptTemplate>>({});

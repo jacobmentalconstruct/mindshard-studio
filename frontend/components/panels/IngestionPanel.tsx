@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { KnowledgeBase, OcrOptions } from '../../types';
 import { getKnowledgeBases, createKnowledgeBase, ingestFilesWithOcr, deleteKnowledgeBase } from '../../services/mindshardService';
-import { ApiKeyContext, KnowledgeContext } from '../../App';
+import { KnowledgeContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import FrameBox from '../FrameBox';
 import { TrashIcon, PlusIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, FileIcon, GlobeAltIcon } from '../Icons';
 
 export const IngestionPanel: React.FC = () => {
-  const { apiKey } = useContext(ApiKeyContext);
+  const apiKey = useAppStore(state => state.apiKey);
   const { targetKbId, setTargetKbId } = useContext(KnowledgeContext);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [ingestionMessage, setIngestionMessage] = useState('');

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { Role, KnowledgeBase, MemoryPolicy } from '../../types';
 import { listRoles, createRole, updateRole, deleteRole, getKnowledgeBases, ingestUrl, ingestFile } from '../../services/mindshardService';
-import { ApiKeyContext, RoleContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import FrameBox from '../FrameBox';
 import { PlusIcon, TrashIcon, ChevronDownIcon, CheckCircleIcon } from '../Icons';
 
@@ -16,8 +16,7 @@ const EMPTY_ROLE_DETAILS: Omit<Role, 'id'> = {
 };
 
 const RolePanel: React.FC = () => {
-    const { apiKey } = useContext(ApiKeyContext);
-    const { roles, setRoles, activeRole, setActiveRole } = useContext(RoleContext);
+    const { apiKey, roles, setRoles, activeRole, setActiveRole } = useAppStore();
 
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
     const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);

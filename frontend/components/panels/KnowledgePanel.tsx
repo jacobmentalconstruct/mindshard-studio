@@ -3,16 +3,16 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { KnowledgeBase } from '../../types';
 import { getKnowledgeBases, createKnowledgeBase, activateKnowledgeBase, deleteKnowledgeBase } from '../../services/mindshardService';
-import { ApiKeyContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import FrameBox from '../FrameBox';
 import { TrashIcon, GlobeAltIcon, FileIcon, CheckCircleIcon } from '../Icons';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 
 const KnowledgePanel: React.FC = () => {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [exploredKb, setExploredKb] = useState<KnowledgeBase | null>(null);
-  const { apiKey } = useContext(ApiKeyContext);
+  const apiKey = useAppStore(state => state.apiKey);
 
   const fetchKbs = useCallback(() => {
     if (!apiKey) return;

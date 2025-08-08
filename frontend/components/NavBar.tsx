@@ -1,10 +1,10 @@
 
-import React, { useContext, useEffect, useState } from 'react';
-import useLocalStorage from '../hooks/useLocalStorage';
-import { ApiKeyContext } from '../App';
-import { BrainCircuitIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, XCircleIcon, CpuChipIcon } from './Icons';
+import React, { useEffect } from 'react';
+import { useAppStore } from '../stores/appStore';
+import { BrainCircuitIcon, CpuChipIcon } from './Icons';
 import { SystemMetrics, SystemStatus } from '../types';
-import { getSystemMetrics, getSystemStatus } from '../services/mindshardService';
+import { useSystemMetricsQuery, useSystemStatusQuery } from '../hooks/queries';
+import useTauriStore from '../hooks/useTauriStore';
 
 const ResourceDisplay: React.FC<{ metrics: SystemMetrics | null }> = ({ metrics }) => {
     if (!metrics) return null;
@@ -55,30 +55,22 @@ const ModelStatusDisplay: React.FC<{ status: SystemStatus | null, modelName: str
 }
 
 const NavBar: React.FC = () => {
-  const { apiKey, setApiKey } = useContext(ApiKeyContext);
-  const [localApiKey, setLocalApiKey] = useLocalStorage('mindshard-api-key', '');
-  const [selectedModel] = useLocalStorage('mindshard-selected-model', '');
-  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const { setSystemStatus, setMetrics } = useAppStore(state => ({
+      setSystemStatus: state.setSystemStatus,
+      setMetrics: state.setMetrics,
+  }));
+  const [selectedModel] = useTauriStore('mindshard-selected-model', '');
+  
+  const { data: statusData } = useSystemStatusQuery();
+  const { data: metricsData } = useSystemMetricsQuery();
 
   useEffect(() => {
-    setApiKey(localApiKey);
-  }, [localApiKey, setApiKey]);
+      if(statusData) setSystemStatus(statusData);
+  }, [statusData, setSystemStatus]);
   
   useEffect(() => {
-    if (!apiKey) return;
-    
-    const fetchData = () => {
-        getSystemMetrics(apiKey).then(setMetrics).catch(console.error);
-        getSystemStatus(apiKey).then(setSystemStatus).catch(console.error);
-    };
-
-    fetchData(); // Initial fetch
-    const intervalId = setInterval(fetchData, 2000);
-
-    return () => clearInterval(intervalId);
-  }, [apiKey]);
-
+      if(metricsData) setMetrics(metricsData);
+  }, [metricsData, setMetrics]);
 
   return (
     <header className="bg-gray-800/95 border-b border-gray-700 p-3 flex items-center shadow-md flex-shrink-0">
@@ -90,15 +82,8 @@ const NavBar: React.FC = () => {
       <div className="flex-grow" />
 
       <div className="flex items-center space-x-4">
-        <ModelStatusDisplay status={systemStatus} modelName={selectedModel} />
-        <ResourceDisplay metrics={metrics} />
-        <div className="w-px h-6 bg-gray-600" />
-        <div className="flex items-center space-x-2">
-            <button className="flex items-center space-x-2 bg-red-700/50 hover:bg-red-600/50 text-gray-300 px-3 py-1.5 rounded-md text-sm transition-colors">
-                <XCircleIcon className="h-5 w-5"/>
-                <span>Close</span>
-            </button>
-        </div>
+        <ModelStatusDisplay status={statusData || null} modelName={selectedModel} />
+        <ResourceDisplay metrics={metricsData || null} />
       </div>
     </header>
   );

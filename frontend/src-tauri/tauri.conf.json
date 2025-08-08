@@ -1,27 +1,25 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "mindshard-studio",
-  "version": "0.1.0",
-  "identifier": "com.tauri.dev",
   "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Mindshard Studio",
-        "width": 800,
-        "height": 600,
-        "resizable": true,
-        "fullscreen": false
-      }
-    ],
     "security": {
       "csp": null
-    }
+    },
+    "windows": [
+      {
+        "label": "main",
+        "fullscreen": false,
+        "height": 800,
+        "resizable": true,
+        "title": "Mindshard Studio v2.1",
+        "width": 1200
+      }
+    ]
   },
   "bundle": {
     "active": true,
@@ -33,5 +31,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  }
+  },
+  "productName": "mindshard-studio",
+  "version": "0.1.0",
+  "identifier": "com.tauri.dev"
 }

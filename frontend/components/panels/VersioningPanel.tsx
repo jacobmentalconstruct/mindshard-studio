@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { Commit } from '../../types';
 import { getCommits, createSnapshot, revertToCommit } from '../../services/mindshardService';
-import { ApiKeyContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import FrameBox from '../FrameBox';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 import { BrainCircuitIcon } from '../Icons';
 
 const DiffLine: React.FC<{ line: string }> = ({ line }) => {
@@ -26,11 +27,11 @@ const DiffLine: React.FC<{ line: string }> = ({ line }) => {
 
 
 const VersioningPanel: React.FC = () => {
-    const { apiKey } = useContext(ApiKeyContext);
+    const apiKey = useAppStore(state => state.apiKey);
     const [commits, setCommits] = useState<Commit[]>([]);
     const [selectedCommit, setSelectedCommit] = useState<Commit | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [isAgentAware, setIsAgentAware] = useLocalStorage('mindshard-aware-versioning', true);
+    const [isAgentAware, setIsAgentAware] = useTauriStore('mindshard-aware-versioning', true);
 
     const fetchCommits = useCallback(() => {
         if (!apiKey) return;

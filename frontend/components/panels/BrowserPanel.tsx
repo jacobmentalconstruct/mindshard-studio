@@ -1,8 +1,11 @@
+
+
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import FrameBox from '../FrameBox';
-import { ApiKeyContext, KnowledgeContext } from '../../App';
+import { KnowledgeContext } from '../../App';
 import { ingestUrl, crawlAndDigestSite } from '../../services/mindshardService';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
+import { useAppStore } from '../../stores/appStore';
 import { PlusIcon } from '../Icons';
 
 const CloseIcon: React.FC<{className?: string; onClick?: (e: React.MouseEvent) => void}> = ({className, onClick}) => (
@@ -17,7 +20,7 @@ interface BrowserTab {
 }
 
 const BrowserPanel: React.FC = () => {
-  const { apiKey } = useContext(ApiKeyContext);
+  const apiKey = useAppStore(state => state.apiKey);
   const { targetKbId } = useContext(KnowledgeContext);
 
   const [tabs, setTabs] = useState<BrowserTab[]>([
@@ -66,7 +69,7 @@ const BrowserPanel: React.FC = () => {
   };
 
   const handleDigestPage = async () => {
-    if (!activeTab) return;
+    if (!activeTab || !apiKey) return;
     setMessage(`Ingesting ${activeTab.url}...`);
     try {
       await ingestUrl(apiKey, activeTab.url, targetKbId);
@@ -78,7 +81,7 @@ const BrowserPanel: React.FC = () => {
   };
 
   const handleCrawlSite = async () => {
-    if (!activeTab) return;
+    if (!activeTab || !apiKey) return;
     setMessage(`Crawling site from ${activeTab.url}...`);
     try {
       const result = await crawlAndDigestSite(apiKey, activeTab.url, targetKbId!);
@@ -132,6 +135,7 @@ const BrowserPanel: React.FC = () => {
             <div className="flex-1 mt-2 bg-gray-900 rounded">
               {activeTab ? (
                 <iframe
+                  key={activeTab.id}
                   src={activeTab.url}
                   className="w-full h-full border-0 rounded"
                   title="Browser"

@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { FileNode } from '../types';
-import { getFileTree, digestProject, undigestProject, getJobStatus } from '../services/mindshardService';
-import { ApiKeyContext, OpenFileContext, KnowledgeContext, ProjectFilesContext } from '../App';
+import { useAppStore } from '../stores/appStore';
+import { ProjectFilesContext, OpenFileContext } from '../App';
 import { FolderIcon, FileIcon, ChevronRightIcon, TrashIcon, MapPinIcon, ArrowPathIcon } from './Icons';
+import FolderPickerModal from './common/FolderPickerModal';
 
 interface FileTreeNodeProps {
   node: FileNode;
@@ -49,56 +51,33 @@ const FileTreeNodeComponent: React.FC<FileTreeNodeProps> = ({ node, selectedPath
 
 
 const ProjectPanel: React.FC = () => {
+  const { projectRoot, setProjectRoot, fileTree, refreshFileTree } = useAppStore(state => ({
+    projectRoot: state.projectRoot,
+    setProjectRoot: state.setProjectRoot,
+    fileTree: state.fileTree,
+    refreshFileTree: state.refreshFileTree,
+  }));
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [newExclusion, setNewExclusion] = useState('');
   const [checkedExclusions, setCheckedExclusions] = useState<Set<string>>(new Set());
+  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
 
-  const { apiKey } = useContext(ApiKeyContext);
   const { openFilePath, setOpenFilePath } = useContext(OpenFileContext);
-  const { targetKbId } = useContext(KnowledgeContext);
-  const { fileTree, setFileTree, selectedPaths, togglePathSelection, exclusions, setExclusions } = useContext(ProjectFilesContext);
+  const { selectedPaths, togglePathSelection, exclusions, setExclusions } = useContext(ProjectFilesContext);
   
-  const findNode = (node: FileNode | null, path: string): FileNode | null => {
-      if (!node) return null;
-      if (node.path === path) return node;
-      if (node.type === 'directory' && node.children) {
-          for (const child of node.children) {
-              const found = findNode(child, path);
-              if (found) return found;
-          }
-      }
-      return null;
-  }
-
-  const handleOpenFolder = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setIsLoading(true);
     setStatusMessage('Loading project...');
-    getFileTree().then(tree => {
-      setFileTree(tree);
-      setIsLoading(false);
-      setStatusMessage('');
-    }).catch(() => {
-        setIsLoading(false);
-        setStatusMessage('Failed to load project.');
-    });
-  }, [setFileTree]);
+    await refreshFileTree();
+    setIsLoading(false);
+    setStatusMessage('');
+  }, [refreshFileTree]);
     
   useEffect(() => {
-      handleOpenFolder();
-  }, [handleOpenFolder]);
+      handleRefresh();
+  }, [projectRoot]); // Refresh tree when root changes
 
-  const handleSetRoot = () => {
-      if (selectedPaths.size !== 1) return;
-      const path = selectedPaths.values().next().value;
-      const node = findNode(fileTree, path);
-      if (node && node.type === 'directory') {
-          setStatusMessage(`Project root set to: ${path}`);
-          // Logic to actually set the root would go here
-          console.log("Setting project root to:", path);
-      }
-  }
-  
   const handleAddExclusion = (e: React.FormEvent) => {
     e.preventDefault();
     if (newExclusion && !exclusions.includes(newExclusion)) {
@@ -139,16 +118,15 @@ const ProjectPanel: React.FC = () => {
     if (!fileTree) return null;
     return filterNode(fileTree, exclusions);
   }, [fileTree, exclusions, filterNode]);
-
-  const isSingleDirectorySelected = useMemo(() => {
-    if (selectedPaths.size !== 1) return false;
-    const path = selectedPaths.values().next().value;
-    const node = findNode(fileTree, path);
-    return node?.type === 'directory';
-  }, [selectedPaths, fileTree]);
-
+  
   return (
     <aside className="w-full h-full p-4 flex flex-col">
+      <FolderPickerModal 
+        isOpen={isFolderPickerOpen}
+        onClose={() => setIsFolderPickerOpen(false)}
+        onSelect={setProjectRoot}
+        initialPath={projectRoot}
+      />
       <div className="flex-shrink-0">
         <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Project Explorer</h2>
@@ -158,12 +136,12 @@ const ProjectPanel: React.FC = () => {
       <div className="flex-shrink-0 mt-4 pb-4 border-b border-gray-700 space-y-3">
         {statusMessage && <div className="text-xs text-cyan-300 text-center h-4">{statusMessage}</div>}
         <div className="flex items-center justify-between space-x-2">
-            <button onClick={handleSetRoot} disabled={!isSingleDirectorySelected} className="w-1/2 text-sm bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-3 rounded transition disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center space-x-2">
+            <button onClick={() => setIsFolderPickerOpen(true)} className="w-1/2 text-sm bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-3 rounded transition flex items-center justify-center space-x-2">
                 <MapPinIcon className="h-4 w-4" />
                 <span>Set Root</span>
             </button>
-            <button onClick={handleOpenFolder} disabled={isLoading} className="w-1/2 text-sm bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-3 rounded transition disabled:bg-gray-500 flex items-center justify-center space-x-2">
-                <ArrowPathIcon className="h-4 w-4" />
+            <button onClick={handleRefresh} disabled={isLoading} className="w-1/2 text-sm bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-3 rounded transition disabled:bg-gray-500 flex items-center justify-center space-x-2">
+                <ArrowPathIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 <span>{isLoading ? 'Loading...' : 'Refresh'}</span>
             </button>
         </div>
@@ -174,7 +152,7 @@ const ProjectPanel: React.FC = () => {
         {filteredTree ? (
             <FileTreeNodeComponent node={filteredTree} selectedPaths={selectedPaths} onToggleSelect={togglePathSelection} onOpenFile={setOpenFilePath} openFilePath={openFilePath} />
         ) : (
-            <p className="text-sm text-gray-500 p-4 text-center">Click "Refresh" to load a project.</p>
+            <p className="text-sm text-gray-500 p-4 text-center">Click "Set Root" to load a project.</p>
         )}
       </div>
 

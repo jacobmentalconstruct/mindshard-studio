@@ -1,11 +1,11 @@
 
 
-import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FrameBox from '../FrameBox';
-import { ApiKeyContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import { SystemMetrics, PerformanceKPIs, BackendLogEntry, LogLevel, SystemStatus } from '../../types';
 import { getSystemMetrics, getPerformanceKpis, getBackendLogs, getSystemStatus } from '../../services/mindshardService';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 import { ChevronDownIcon, Cog6ToothIcon } from '../Icons';
 
 const ResourceGauge: React.FC<{ label: string; value: number }> = ({ label, value }) => {
@@ -66,7 +66,7 @@ const MONITORS = [
 ];
 
 const SystemMonitorPanel: React.FC = () => {
-    const { apiKey } = useContext(ApiKeyContext);
+    const apiKey = useAppStore(state => state.apiKey);
     const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
     const [kpis, setKpis] = useState<PerformanceKPIs | null>(null);
     const [logs, setLogs] = useState<BackendLogEntry[]>([]);
@@ -76,7 +76,7 @@ const SystemMonitorPanel: React.FC = () => {
     const logContainerRef = React.useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
 
-    const [visibleMonitors, setVisibleMonitors] = useLocalStorage<string[]>(
+    const [visibleMonitors, setVisibleMonitors] = useTauriStore<string[]>(
         'mindshard-visible-monitors',
         MONITORS.map(m => m.id) // Default to all visible
     );

@@ -11,37 +11,17 @@ import {
     updateLongTermEntry,
     deleteLongTermEntry
 } from '../../services/mindshardService';
-import { ApiKeyContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import { TrashIcon, PencilIcon, ArrowUpTrayIcon } from '../Icons';
 
 type MemoryView = 'scratchpad' | 'long-term';
 
-const MemoryPanel: React.FC = () => {
-  const [view, setView] = useState<MemoryView>('scratchpad');
-  const [scratchpad, setScratchpad] = useState<MemoryEntry[]>([]);
-  const [longTerm, setLongTerm] = useState<MemoryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const { apiKey } = useContext(ApiKeyContext);
-
-  const fetchAll = useCallback(() => {
-    if (!apiKey) return;
-    setIsLoading(true);
-    Promise.all([
-      getScratchpad(apiKey),
-      getLongTermMemory(apiKey)
-    ]).then(([scratchData, longTermData]) => {
-      setScratchpad(scratchData);
-      setLongTerm(longTermData);
-    }).catch(() => setError('Failed to fetch memory entries.'))
-    .finally(() => setIsLoading(false));
-  }, [apiKey]);
-
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
-
-  const ScratchpadView = () => {
+const ScratchpadView: React.FC<{
+    apiKey: string;
+    fetchAll: () => void;
+    isLoading: boolean;
+    scratchpad: MemoryEntry[];
+}> = ({ apiKey, fetchAll, isLoading, scratchpad }) => {
     const [content, setContent] = useState('');
 
     const handleAdd = async (e: React.FormEvent) => {
@@ -100,7 +80,12 @@ const MemoryPanel: React.FC = () => {
     );
   };
   
-  const LongTermView = () => {
+const LongTermView: React.FC<{
+    apiKey: string;
+    fetchAll: () => void;
+    isLoading: boolean;
+    longTerm: MemoryEntry[];
+}> = ({ apiKey, fetchAll, isLoading, longTerm }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [tagFilter, setTagFilter] = useState('');
     const [editingEntry, setEditingEntry] = useState<MemoryEntry | null>(null);
@@ -208,7 +193,32 @@ const MemoryPanel: React.FC = () => {
             </div>
         </div>
     );
-  };
+};
+
+const MemoryPanel: React.FC = () => {
+  const [view, setView] = useState<MemoryView>('scratchpad');
+  const [scratchpad, setScratchpad] = useState<MemoryEntry[]>([]);
+  const [longTerm, setLongTerm] = useState<MemoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const apiKey = useAppStore(state => state.apiKey);
+
+  const fetchAll = useCallback(() => {
+    if (!apiKey) return;
+    setIsLoading(true);
+    Promise.all([
+      getScratchpad(apiKey),
+      getLongTermMemory(apiKey)
+    ]).then(([scratchData, longTermData]) => {
+      setScratchpad(scratchData);
+      setLongTerm(longTermData);
+    }).catch(() => setError('Failed to fetch memory entries.'))
+    .finally(() => setIsLoading(false));
+  }, [apiKey]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   return (
     <div className="p-4 h-full flex flex-col">
@@ -219,7 +229,7 @@ const MemoryPanel: React.FC = () => {
         </div>
         {error && <p className="text-red-500 flex-shrink-0">{error}</p>}
         <div className="flex-grow overflow-y-auto pr-2">
-            {view === 'scratchpad' ? <ScratchpadView /> : <LongTermView />}
+            {view === 'scratchpad' ? <ScratchpadView apiKey={apiKey} fetchAll={fetchAll} isLoading={isLoading} scratchpad={scratchpad} /> : <LongTermView apiKey={apiKey} fetchAll={fetchAll} isLoading={isLoading} longTerm={longTerm} />}
         </div>
     </div>
   );

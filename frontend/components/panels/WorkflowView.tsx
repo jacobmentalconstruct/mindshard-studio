@@ -3,16 +3,16 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { Workflow, WorkflowStep, Role } from '../../types';
 import { getAllWorkflows, getWorkflowById, createWorkflow, updateWorkflow, deleteWorkflow, infer } from '../../services/mindshardService';
-import { ApiKeyContext, InspectionContext, RoleContext } from '../../App';
+import { InspectionContext } from '../../App';
+import { useAppStore } from '../../stores/appStore';
 import { PlusIcon, TrashIcon, PaperAirplaneIcon, ChevronLeftIcon, ChevronRightIcon } from '../Icons';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 import { Editor } from "@monaco-editor/react";
 
 const WorkflowView: React.FC = () => {
-    const { apiKey } = useContext(ApiKeyContext);
+    const { apiKey, roles } = useAppStore();
     const { setInspectionData } = useContext(InspectionContext);
-    const { roles } = useContext(RoleContext);
-    const [useRag] = useLocalStorage('mindshard-userag', true);
+    const [useRag] = useTauriStore('mindshard-userag', true);
 
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [activeWorkflow, setActiveWorkflow] = useState<Workflow | null>(null);

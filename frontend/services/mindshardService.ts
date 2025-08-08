@@ -6,7 +6,7 @@ import {
     BackendLogEntry, OcrOptions, Commit, CondaEnv, ServerStatusResponse, TaskList, Task
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000';
 
 /**
  * Helper function to construct standard HTTP headers including Authorization.
@@ -279,20 +279,22 @@ export const listModels = async (apiKey: string, modelFolder: string): Promise<s
         body: JSON.stringify({ path: modelFolder }),
     });
     if (!response.ok) {
-        console.error("Failed to list models:", await response.text());
-        return []; // Return an empty array on failure to prevent app crash
+        const errorText = await response.text();
+        console.error("Failed to list models:", errorText);
+        throw new Error(errorText || "Server error while listing models.");
     }
     return response.json();
 };
 
 /**
  * Fetches the file tree structure of the project from the backend.
- * NOTE: This is currently a mock implementation. A real backend endpoint
- * would be needed to dynamically list project files.
+ * @param basePath The root path to start listing from.
  * @returns A promise resolving to the root FileNode.
  */
-export const getFileTree = async (): Promise<FileNode> => {
-    const mockTree: FileNode = { id: 'root', name: 'Mock Project', type: 'directory', path: '/', children: [{ id: '1', name: 'src', type: 'directory', path: '/src', children: [{ id: '1-1', name: 'App.tsx', type: 'file', path: '/src/App.tsx' }] }] };
+export const getFileTree = async (basePath: string | null = null): Promise<FileNode> => {
+    // This mock now respects the basePath, a real implementation would use it.
+    console.log(`STUB: getting file tree from base path: ${basePath}`);
+    const mockTree: FileNode = { id: 'root', name: basePath || 'Mock Project', type: 'directory', path: basePath || '/', children: [{ id: '1', name: 'src', type: 'directory', path: '/src', children: [{ id: '1-1', name: 'App.tsx', type: 'file', path: '/src/App.tsx' }] }] };
     return new Promise(resolve => setTimeout(() => resolve(mockTree), 500));
 };
 
@@ -341,6 +343,7 @@ export const undigestProject = async (apiKey: string, files: string[], kb_id: st
  * @returns A promise resolving to the updated SystemStatus.
  */
 export const loadModel = async (apiKey: string, model: string): Promise<SystemStatus> => {
+    console.log("STUB: Loading model:", model);
     return new Promise(resolve => {
         setTimeout(() => {
             resolve({ model_status: 'loaded', retriever_status: 'active' });
@@ -356,6 +359,7 @@ export const loadModel = async (apiKey: string, model: string): Promise<SystemSt
  * @returns A promise resolving to the updated SystemStatus.
  */
 export const unloadModel = async (apiKey: string): Promise<SystemStatus> => {
+    console.log("STUB: Unloading model");
     return new Promise(resolve => {
         setTimeout(() => {
             resolve({ model_status: 'unloaded', retriever_status: 'inactive' });
@@ -1155,21 +1159,6 @@ export const getLogsAsText = async (apiKey: string): Promise<{ logs: string }> =
 };
 
 // --- Mocks for functions not yet fully implemented or with simplified backend ---
-
-let folderSelectionToggle = false;
-/**
- * Simulates a folder picker dialog. This is a stub; a real implementation would require
- * a desktop wrapper like Electron or Tauri to open a native folder dialog.
- * @returns A promise resolving to a selected folder path.
- */
-export const selectFolder = (): Promise<{ path: string | null }> => {
-    console.log("STUB: Simulating folder picker dialog.");
-    // This is a placeholder. A real implementation would require a desktop
-    // application wrapper like Electron or Tauri to open a native folder dialog.
-    folderSelectionToggle = !folderSelectionToggle;
-    const path = folderSelectionToggle ? '/path/to/models/custom' : '/path/to/models/default';
-    return new Promise(resolve => setTimeout(() => resolve({ path }), 500));
-};
 
 /**
  * Mocks getting job status. In a real app, this would query a job queue.

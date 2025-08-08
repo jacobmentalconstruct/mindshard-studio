@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import FrameBox from '../FrameBox';
-import useLocalStorage from '../../hooks/useLocalStorage';
+import useTauriStore from '../../hooks/useTauriStore';
 
 interface LogEntry {
   timestamp: string;
