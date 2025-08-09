@@ -225,4 +225,5 @@ export interface ServerLogEntry {
 
 export interface ContextSelection {
     use_rag: boolean;
+    rag_knowledge_base_id?: string | null;
 }

@@ -16,6 +16,8 @@ import WorkflowView from './WorkflowView';
 import RolePanel from './RolePanel';
 import { SettingsView } from './SettingsPanel'; 
 import LoadingSpinner from '../common/LoadingSpinner';
+import type { ContextSelection } from '../../types';
+
 
 // --- Helper component for the Thought Stream tab ---
 const ThoughtStreamPanel: React.FC<{ streamEntries: StreamEntry[], isBusy: boolean }> = ({ streamEntries, isBusy }) => {
@@ -433,6 +435,7 @@ const InferencePanel: React.FC = () => {
     };
     const contextSelection: ContextSelection = {
         use_rag: useRag,
+		rag_knowledge_base_id: ragKbId || undefined,
     };
     const onError = (error: Error) => {
         console.error("Streaming error:", error);

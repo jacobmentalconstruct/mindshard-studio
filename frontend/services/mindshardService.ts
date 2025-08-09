@@ -6,6 +6,7 @@ import {
   PromptTemplate,
   Role,
   Scratchpad,
+  ContextSelection,
   SystemStatus,
   SystemMetrics,
   Workflow,
@@ -133,6 +134,8 @@ export const getSystemStatus = async (
 export const streamCognitiveLogs = async (
   apiKey: string,
   prompt: string,
+  inferenceParams: Record<string, any>,
+  contextSelection: ContextSelection,
   onScratchpad: (scratchpad: Scratchpad) => void,
   onEnd: () => void,
   onError: (error: Error) => void
@@ -143,12 +146,54 @@ export const streamCognitiveLogs = async (
       headers: { ...getHeaders(apiKey), Accept: 'text/event-stream' },
       body: JSON.stringify({
         prompt,
-        context_selection: {
-          use_rag: true,
-          rag_knowledge_base_id: 'personal_memory',
-        },
+        inference_params: inferenceParams,           // <-- NEW
+        context_selection: contextSelection,         // <-- NEW
       }),
     });
+
+    if (!response.ok || !response.body) {
+      let errorData: any = null;
+      try { errorData = await response.json(); } catch { /* noop */ }
+      const detail =
+        (errorData && (errorData.detail || errorData.message)) ||
+        response.statusText ||
+        `HTTP error! status: ${response.status}`;
+      throw new Error(detail);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.substring(6);
+          if (jsonStr) {
+            try {
+              const scratchpad = JSON.parse(jsonStr) as Scratchpad;
+              onScratchpad(scratchpad);
+            } catch (e) {
+              console.error('Failed to parse SSE data chunk:', jsonStr, e);
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    onError(error instanceof Error ? error : new Error('An unknown streaming error occurred'));
+  } finally {
+    onEnd();
+  }
+};
+
 
     if (!response.ok || !response.body) {
       let errorData: any = null;
