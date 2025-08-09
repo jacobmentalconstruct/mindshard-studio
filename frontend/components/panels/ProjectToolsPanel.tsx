@@ -1,198 +1,328 @@
-
-import React, { useState, useContext, useEffect, useRef } from 'react';
-import FrameBox from '../FrameBox';
-import { ProjectFilesContext } from '../../App';
+// File: frontend/components/panels/ProjectToolsPanel.tsx
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
+import { FileNode } from '../../types';
 import { useAppStore } from '../../stores/appStore';
-import * as mindshardService from '../../services/mindshardService';
-import { CondaEnv, ServerStatusResponse, ServerLogEntry } from '../../types';
-import { ChevronDownIcon, ClipboardDocumentCheckIcon, BrainCircuitIcon } from '../Icons';
-import useTauriStore from '../../hooks/useTauriStore';
+import { ProjectFilesContext, OpenFileContext } from '../../App';
+import { FolderIcon, FileIcon, ChevronRightIcon, TrashIcon, MapPinIcon, ArrowPathIcon } from '../Icons';
+import FolderPickerModal from '../common/FolderPickerModal';
+import { useNotify } from '../../hooks/useNotify';
+import { getFileTree, getFileContent, digestProjectFiles } from '../../services/mindshardService';
+import { hasBinaryExt, shouldExcludeByName, EXCLUDED_FOLDERS } from '../../utils/fileFilters';
 
 
-const AccordionSection: React.FC<{ title: string; children: React.ReactNode, defaultOpen?: boolean }> = ({ title, children, defaultOpen = true }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+/* ---------- File tree node ---------- */
+
+interface FileTreeNodeProps {
+  node: FileNode;
+  selectedPaths: Set<string>;
+  onToggleSelect: (path: string, selected: boolean) => void;
+  onOpenFile: (path: string) => void;
+  openFilePath: string | null;
+}
+
+const FileTreeNode: React.FC<FileTreeNodeProps> = ({
+  node,
+  selectedPaths,
+  onToggleSelect,
+  onOpenFile,
+  openFilePath,
+}) => {
+  const [isOpen, setIsOpen] = useState(node.type === 'directory');
+  const isSelected = selectedPaths.has(node.path);
+  const isCurrentlyOpen = openFilePath === node.path;
+
   return (
-    <div className="bg-gray-900/50 rounded-lg border border-gray-700">
-      <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-cyan-400 hover:bg-gray-800/20 rounded-t-lg">
-        <span>{title}</span>
-        <ChevronDownIcon className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      {isOpen && <div className="p-3 border-t border-gray-700 space-y-3">{children}</div>}
+    <div className="ml-4">
+      <div
+        className={`flex items-center py-1 group rounded-md px-1 ${isCurrentlyOpen ? 'bg-cyan-500/20' : ''}`}
+      >
+        {node.type === 'directory' && (
+          <ChevronRightIcon
+            className={`h-4 w-4 mr-1 cursor-pointer transition-transform ${isOpen ? 'rotate-90' : ''}`}
+            onClick={() => setIsOpen((v) => !v)}
+            aria-label={isOpen ? 'Collapse folder' : 'Expand folder'}
+            role="button"
+          />
+        )}
+
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onToggleSelect(node.path, e.target.checked)}
+          className="mr-2 h-4 w-4 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500"
+          aria-label={`Select ${node.name}`}
+        />
+
+        {node.type === 'directory' ? (
+          <FolderIcon className="h-5 w-5 mr-2 text-cyan-400" />
+        ) : (
+          <FileIcon className="h-5 w-5 mr-2 text-gray-400" />
+        )}
+
+        <span
+          className={`text-sm ${node.type === 'file' ? 'cursor-pointer hover:text-white' : ''} ${
+            isCurrentlyOpen ? 'font-bold text-cyan-300' : ''
+          }`}
+          onClick={() => node.type === 'file' && onOpenFile(node.path)}
+          title={node.path}
+        >
+          {node.name}
+        </span>
+      </div>
+
+      {isOpen &&
+        node.type === 'directory' &&
+        node.children?.map((child) => (
+          <FileTreeNode
+            key={child.id}
+            node={child}
+            selectedPaths={selectedPaths}
+            onToggleSelect={onToggleSelect}
+            onOpenFile={onOpenFile}
+            openFilePath={openFilePath}
+          />
+        ))}
     </div>
   );
 };
 
+/* ---------- Panel ---------- */
+
 const ProjectToolsPanel: React.FC = () => {
-    const apiKey = useAppStore(state => state.apiKey);
-    const { selectedPaths, exclusions } = useContext(ProjectFilesContext);
-    const [result, setResult] = useState<string>('');
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [isAgentAware, setIsAgentAware] = useTauriStore('mindshard-aware-project-tools', true);
+  const { projectRoot, setProjectRoot, fileTree, refreshFileTree } = useAppStore((s) => ({
+    projectRoot: s.projectRoot,
+    setProjectRoot: s.setProjectRoot,
+    fileTree: s.fileTree,
+    refreshFileTree: s.refreshFileTree,
+  }));
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [newExclusion, setNewExclusion] = useState('');
+  const [checkedExclusions, setCheckedExclusions] = useState<Set<string>>(new Set());
+  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
 
-    
-    // Audit state
-    const [condaEnvs, setCondaEnvs] = useState<CondaEnv[]>([]);
-    const [selectedCondaEnv, setSelectedCondaEnv] = useState<string>('');
-    
-    // Server state
-    const [serverStatus, setServerStatus] = useState<ServerStatusResponse>({ isRunning: false, port: null });
-    const [serverPort, setServerPort] = useState<number>(8000);
-    const [autoOpen, setAutoOpen] = useState<boolean>(true);
-    const [removeIndex, setRemoveIndex] = useState<boolean>(true);
-    const [serverLogs, setServerLogs] = useState<ServerLogEntry[]>([]);
-    const serverLogInterval = useRef<number | null>(null);
+  const { openFilePath, setOpenFilePath } = useContext(OpenFileContext);
+  const { selectedPaths, togglePathSelection, exclusions, setExclusions } = useContext(ProjectFilesContext);
 
-    const handleApiCall = async (apiFunc: () => Promise<{ message?: string; report?: string; backup_path?: string; }>) => {
-        if (!apiKey) {
-            setResult("API Key is not set.");
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const response = await apiFunc();
-            setResult(response.message || response.report || response.backup_path || "Success!");
-        } catch (error: any) {
-            setResult(`Error: ${error.message}`);
-        }
+  /**
+   * Optional-path-aware refresh:
+   * - If the store's refreshFileTree accepts a path, call it directly.
+   * - Otherwise, fall back to setProjectRoot(path) then refreshFileTree().
+   */
+  const refreshFileTreeMaybe = useCallback(
+    async (path?: string | null) => {
+      const fn: any = refreshFileTree as any;
+      const acceptsPath = typeof fn === 'function' && fn.length >= 1;
+
+      if (path && acceptsPath) {
+        await fn(path);
+      } else if (path && path !== projectRoot) {
+        setProjectRoot(path);
+        await refreshFileTree();
+      } else {
+        await refreshFileTree();
+      }
+    },
+    [projectRoot, refreshFileTree, setProjectRoot]
+  );
+
+  const handleOpenFolder = useCallback(
+    async (path: string | null) => {
+      if (!path) return;
+      setIsLoading(true);
+      setStatusMessage('Loading project tree...');
+      try {
+        await refreshFileTreeMaybe(path);
+        setStatusMessage('');
+      } catch (err: any) {
+        setStatusMessage(`Error: ${err?.message ?? 'Failed to load project tree.'}`);
+      } finally {
         setIsLoading(false);
-    };
-    
-    useEffect(() => {
-        if (apiKey) {
-            mindshardService.listCondaEnvs(apiKey).then(envs => {
-                setCondaEnvs(envs);
-                const active = envs.find(e => e.isActive);
-                if (active) setSelectedCondaEnv(active.name);
-            });
-            mindshardService.getServerStatus(apiKey).then(setServerStatus);
-        }
-    }, [apiKey]);
-    
-    // Server handling
-    const startServerLogStream = () => {
-        if (serverLogInterval.current) clearInterval(serverLogInterval.current);
-        serverLogInterval.current = window.setInterval(() => {
-            const messages = ["GET /index.html 200 OK", "GET /style.css 200 OK", "GET /script.js 200 OK", "404 Not Found: /favicon.ico"];
-            setServerLogs(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message: messages[Math.floor(Math.random() * messages.length)] }]);
-        }, 2500);
-    };
-    
-    const stopServerLogStream = () => {
-        if (serverLogInterval.current) {
-            clearInterval(serverLogInterval.current);
-            serverLogInterval.current = null;
-        }
-    };
-    
-    const handleStartServer = async () => {
-        if (!apiKey) return;
-        const status = await mindshardService.startServer(apiKey, serverPort, !removeIndex);
-        setServerStatus(status);
-        if (status.isRunning) {
-            startServerLogStream();
-        }
-    };
+      }
+    },
+    [refreshFileTreeMaybe]
+  );
 
-    const handleStopServer = async () => {
-        if (!apiKey) return;
-        const status = await mindshardService.stopServer(apiKey);
-        setServerStatus(status);
-        stopServerLogStream();
-        setServerLogs(prev => [...prev, {timestamp: new Date().toLocaleTimeString(), message: "Server stopped."}]);
-    };
-    
-    // Log export
-    const handleCopyLogs = async () => {
-        if (!apiKey) return;
-        const { logs } = await mindshardService.getLogsAsText(apiKey);
-        navigator.clipboard.writeText(logs);
-        setResult("All logs copied to clipboard.");
-    };
+  const handleRefresh = useCallback(async () => {
+    setIsLoading(true);
+    setStatusMessage('Loading project…');
+    try {
+      await refreshFileTreeMaybe();
+      setStatusMessage('');
+    } catch (err: any) {
+      setStatusMessage(`Error: ${err?.message ?? 'Failed to load project.'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [refreshFileTreeMaybe]);
 
-    const handleDownloadLogs = async () => {
-        if (!apiKey) return;
-        const { url } = await mindshardService.downloadLogsArchive(apiKey);
-        setResult(`Archive created. Starting download from ${url}...`);
-        // In a real app, you'd trigger a download. Here we just log.
-        console.log("Download URL:", url);
-    };
+  useEffect(() => {
+    if (projectRoot) {
+      handleRefresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectRoot]);
 
-    return (
-        <div className="p-4 flex flex-col h-full">
-            <header className="flex-shrink-0 flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
-                <h2 className="text-xl font-bold text-gray-200">Project Tools</h2>
-                <button
-                    onClick={() => setIsAgentAware(p => !p)}
-                    title={isAgentAware ? "The AI agent is aware of this panel's context." : "The AI agent is NOT aware of this panel's context."}
-                    className={`p-1 rounded-full transition-colors ${isAgentAware ? 'text-cyan-400 bg-cyan-900/50 hover:bg-cyan-800/50' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'}`}
-                 >
-                    <BrainCircuitIcon className="h-4 w-4" />
-                 </button>
-            </header>
-            <div className="flex flex-col h-full space-y-4 overflow-y-auto pr-2">
-                {result && <div className="p-2 bg-cyan-900/50 border border-cyan-700 rounded-md text-cyan-300 text-sm mb-4">{isLoading ? "Loading..." : result}</div>}
+  /* ----- Exclusions ----- */
 
-                <AccordionSection title="Project Analysis">
-                    <button onClick={() => handleApiCall(() => mindshardService.buildTreeMap(apiKey))} className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded">Build Tree Map</button>
-                    <button onClick={() => handleApiCall(() => mindshardService.dumpSourceFiles(apiKey))} className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded">Dump Source Files</button>
-                </AccordionSection>
+  const handleAddExclusion = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newExclusion.trim();
+    if (trimmed && !exclusions.includes(trimmed)) {
+      setExclusions([...exclusions, trimmed]);
+      setNewExclusion('');
+    }
+  };
 
-                <AccordionSection title="Audits">
-                    <div className="flex items-center space-x-2">
-                        <span className="text-sm">Conda Env:</span>
-                        <select value={selectedCondaEnv} onChange={e => setSelectedCondaEnv(e.target.value)} className="flex-grow bg-gray-800 p-1 rounded border border-gray-600">
-                           {condaEnvs.map(env => <option key={env.name} value={env.name}>{env.name}{env.isActive ? ' (active)' : ''}</option>)}
-                        </select>
-                        <button onClick={() => handleApiCall(() => mindshardService.auditCondaEnv(apiKey, selectedCondaEnv))} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">Audit Conda ▶︎</button>
-                    </div>
-                    <button onClick={() => handleApiCall(() => mindshardService.auditSystemInfo(apiKey))} className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded">Audit System Info ▶︎</button>
-                </AccordionSection>
+  const handleToggleExclusionCheck = (exclusion: string) => {
+    setCheckedExclusions((prev) => {
+      const next = new Set(prev);
+      next.has(exclusion) ? next.delete(exclusion) : next.add(exclusion);
+      return next;
+    });
+  };
 
-                <AccordionSection title="Backup">
-                     <button 
-                        onClick={() => handleApiCall(() => mindshardService.backupProject(apiKey, Array.from(selectedPaths), exclusions))} 
-                        disabled={selectedPaths.size === 0}
-                        className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed"
-                    >
-                        Backup Project ({selectedPaths.size} items selected) ▶︎
-                    </button>
-                </AccordionSection>
+  const handleDeleteExclusions = () => {
+    setExclusions(exclusions.filter((ex) => !checkedExclusions.has(ex)));
+    setCheckedExclusions(new Set());
+  };
 
-                <AccordionSection title="Server">
-                    <div className="grid grid-cols-2 gap-4 items-center">
-                         <div className="flex items-center space-x-2">
-                            <label htmlFor="port" className="text-sm">Port:</label>
-                            <input type="number" id="port" value={serverPort} onChange={e => setServerPort(Number(e.target.value))} className="w-24 bg-gray-800 p-1 rounded border border-gray-600" />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={autoOpen} onChange={e => setAutoOpen(e.target.checked)} className="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500"/><span>Auto-open browser</span></label>
-                            <label className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={removeIndex} onChange={e => setRemoveIndex(e.target.checked)} className="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500"/><span>Remove index.html on stop</span></label>
-                        </div>
-                    </div>
-                     <div className="flex space-x-2 mt-3">
-                        <button onClick={handleStartServer} disabled={serverStatus.isRunning} className="w-full p-2 bg-green-600 hover:bg-green-700 rounded disabled:bg-gray-800">Start Server ▶︎</button>
-                        <button onClick={handleStopServer} disabled={!serverStatus.isRunning} className="w-full p-2 bg-red-600 hover:bg-red-700 rounded disabled:bg-gray-800">Stop Server ▶︎</button>
-                    </div>
-                     <div className="mt-2 h-32 bg-gray-800 p-2 rounded-md font-mono text-xs overflow-y-auto border border-gray-600">
-                        {serverLogs.map((log, i) => <div key={i}><span className="text-gray-500">{log.timestamp}</span> <span className="ml-2 text-gray-300">{log.message}</span></div>)}
-                         {!serverStatus.isRunning && serverLogs.length === 0 && <span className="text-gray-500">Server is stopped.</span>}
-                    </div>
-                </AccordionSection>
-                
-                <AccordionSection title="Logs Export">
-                    <button onClick={() => handleApiCall(async () => {
-                        const res = await mindshardService.saveSessionLog(apiKey);
-                        return { message: `Session log saved to ${res.path}` };
-                    })} className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded">Save App Session Log ▶︎</button>
-                    <button onClick={handleDownloadLogs} className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded">Download Entire Logs ZIP ▶︎</button>
-                    <button onClick={handleCopyLogs} className="flex items-center justify-between w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                        <span>Copy Logs to Clipboard ▶︎</span>
-                        <ClipboardDocumentCheckIcon className="h-5 w-5 text-gray-400" />
-                    </button>
-                </AccordionSection>
-            </div>
+  /* ----- Filtering ----- */
+
+  const filterNode = useCallback((node: FileNode, currentExclusions: string[]): FileNode | null => {
+    const isExcluded = currentExclusions.some((ex) => node.name.includes(ex) || node.path.includes(ex));
+    if (isExcluded) return null;
+
+    if (node.type === 'directory' && node.children) {
+      const newChildren = node.children
+        .map((child) => filterNode(child, currentExclusions))
+        .filter(Boolean) as FileNode[];
+      return { ...node, children: newChildren };
+    }
+    return node;
+  }, []);
+
+  const filteredTree = useMemo(() => {
+    if (!fileTree) return null;
+    return filterNode(fileTree, exclusions);
+  }, [fileTree, exclusions, filterNode]);
+
+  /* ----- Render ----- */
+
+  return (
+    <aside className="w-full h-full p-4 flex flex-col">
+      <FolderPickerModal
+        isOpen={isFolderPickerOpen}
+        onClose={() => setIsFolderPickerOpen(false)}
+        onConfirm={(path) => {
+          setIsFolderPickerOpen(false);
+          handleOpenFolder(path);
+        }}
+      />
+
+      <header className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-2 text-sm text-gray-400">
+          <MapPinIcon className="h-4 w-4 text-cyan-400" />
+          <span className="truncate max-w-[240px]" title={projectRoot ?? 'No project selected'}>
+            {projectRoot ?? 'No project selected'}
+          </span>
         </div>
-    );
+        <div className="flex items-center space-x-2">
+          <button
+            className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm disabled:opacity-50"
+            onClick={() => setIsFolderPickerOpen(true)}
+            disabled={isLoading}
+            aria-label="Open project folder"
+          >
+            Open…
+          </button>
+          <button
+            className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm flex items-center space-x-1 disabled:opacity-50"
+            onClick={handleRefresh}
+            disabled={!projectRoot || isLoading}
+            aria-label="Refresh project tree"
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      {statusMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-3 px-2 py-1 text-xs rounded border border-gray-700 bg-gray-800 text-gray-300"
+        >
+          {statusMessage}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto pr-2">
+        {!filteredTree && !isLoading && (
+          <p className="text-sm text-gray-500">Pick a project folder to load its tree.</p>
+        )}
+        {filteredTree && (
+          <FileTreeNode
+            node={filteredTree}
+            selectedPaths={selectedPaths}
+            onToggleSelect={togglePathSelection}
+            onOpenFile={setOpenFilePath}
+            openFilePath={openFilePath}
+          />
+        )}
+      </div>
+
+      {/* Exclusions manager */}
+      <div className="mt-4 border-t border-gray-700 pt-3">
+        <form onSubmit={handleAddExclusion} className="flex items-center space-x-2">
+          <input
+            type="text"
+            value={newExclusion}
+            onChange={(e) => setNewExclusion(e.target.value)}
+            placeholder="Add exclusion (e.g., node_modules, .git)"
+            className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm"
+            aria-label="Add exclusion"
+          />
+          <button className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm" type="submit">
+            Add
+          </button>
+        </form>
+
+        <ul className="mt-2 space-y-1">
+          {exclusions.map((ex) => (
+            <li key={ex} className="flex items-center justify-between text-sm">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={checkedExclusions.has(ex)}
+                  onChange={() => handleToggleExclusionCheck(ex)}
+                  className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500"
+                  aria-label={`Select exclusion ${ex}`}
+                />
+                <span className="text-gray-300">{ex}</span>
+              </label>
+              <button
+                onClick={() => {
+                  setCheckedExclusions((prev) => {
+                    const next = new Set(prev);
+                    next.add(ex);
+                    return next;
+                  });
+                  handleDeleteExclusions();
+                }}
+                className="p-1 rounded hover:bg-gray-700"
+                aria-label={`Remove exclusion ${ex}`}
+                title="Remove"
+              >
+                <TrashIcon className="h-4 w-4 text-gray-400" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </aside>
+  );
 };
 
 export default ProjectToolsPanel;

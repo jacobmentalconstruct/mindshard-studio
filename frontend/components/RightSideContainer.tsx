@@ -65,7 +65,7 @@ const RightSideContainer: React.FC = () => {
     const [activePanel, setActivePanel] = useState<PanelType | string>(PanelType.Editor);
 
     const handleDrop = () => {
-        const newTabs = [...panelTabs];
+		const newTabs = [...panelTabs];
         if (dragItem.current !== null && dragOverItem.current !== null) {
             const draggedItemContent = newTabs.splice(dragItem.current, 1)[0];
             newTabs.splice(dragOverItem.current, 0, draggedItemContent);

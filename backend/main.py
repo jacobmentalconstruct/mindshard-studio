@@ -5,7 +5,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false" # Add this line
 import uvicorn
 import structlog # Import structlog for structured logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
+from .security import require_api_key
 from fastapi.middleware.cors import CORSMiddleware
 
 # --- Import Core Services ---
@@ -31,6 +32,14 @@ from backend.api.knowledge_manager_api import knowledge_api
 from backend.api.memory_api import memory_api
 from backend.api.versioning_api import versioning_api
 from backend.api.prompt_api import prompt_api # Import prompt_api
+
+# --- import for the new monitoring ---
+from backend.observability import (
+    init_sentry,
+    init_opentelemetry,
+    instrument_fastapi_app,
+    shutdown_opentelemetry,
+)
 
 log = structlog.get_logger(__name__) # Initialize logger
 
@@ -136,18 +145,22 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# --- Register API Routers ---
-# Each router handles a specific domain of API endpoints
-app.include_router(orchestrator_api, prefix="/api", tags=["Orchestrator"])
-app.include_router(sys_api, prefix="/api", tags=["System & Monitoring"])
-app.include_router(tools_api, prefix="/api", tags=["Project Tools"])
-app.include_router(rag_api, prefix="/api", tags=["RAG & Project Digestion"])
-app.include_router(wf_api, prefix="/api", tags=["Workflows"])
-app.include_router(roles_api, prefix="/api", tags=["Roles & Personas"])
-app.include_router(knowledge_api, prefix="/api", tags=["Knowledge Management"])
-app.include_router(memory_api, prefix="/api", tags=["Memory Management"])
-app.include_router(versioning_api, prefix="/api", tags=["Versioning"])
-app.include_router(prompt_api, prefix="/api", tags=["Prompt Management"]) # Registered prompt_api
+# keep healthz / docs open
+@app.get("/healthz")
+def healthz(): return {"ok": True}
+
+# --- Register API Routers --- MOVED & CORRECTED
+app.include_router(orchestrator_api, prefix="/api", tags=["Orchestrator"], dependencies=[Depends(require_api_key)])
+app.include_router(sys_api, prefix="/api", tags=["System & Monitoring"], dependencies=[Depends(require_api_key)])
+app.include_router(tools_api, prefix="/api", tags=["Project Tools"], dependencies=[Depends(require_api_key)])
+app.include_router(rag_api, prefix="/api", tags=["RAG & Project Digestion"], dependencies=[Depends(require_api_key)])
+app.include_router(wf_api, prefix="/api", tags=["Workflows"], dependencies=[Depends(require_api_key)])
+app.include_router(roles_api, prefix="/api", tags=["Roles & Personas"], dependencies=[Depends(require_api_key)])
+app.include_router(knowledge_api, prefix="/api", tags=["Knowledge Management"], dependencies=[Depends(require_api_key)])
+app.include_router(memory_api, prefix="/api", tags=["Memory Management"], dependencies=[Depends(require_api_key)])
+app.include_router(versioning_api, prefix="/api", tags=["Versioning"], dependencies=[Depends(require_api_key)])
+app.include_router(prompt_api, prefix="/api", tags=["Prompt Management"], dependencies=[Depends(require_api_key)])
+
 
 def run_server():
     """
